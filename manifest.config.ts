@@ -1,6 +1,6 @@
 import type { ManifestV3Export } from "@crxjs/vite-plugin";
 
-const manifest: ManifestV3Export = {
+const manifest = {
   manifest_version: 3,
   name: "神评卡片",
   version: "0.1.0",
@@ -11,6 +11,6 @@ const manifest: ManifestV3Export = {
       js: ["src/content/index.ts"],
     },
   ],
-};
+} satisfies ManifestV3Export;
 
 export default manifest;
