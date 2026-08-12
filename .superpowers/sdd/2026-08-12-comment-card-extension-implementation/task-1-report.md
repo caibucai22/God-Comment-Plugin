@@ -15,7 +15,9 @@
 
 Command: `npm test -- --run tests/unit/manifest.test.ts`
 
-Result: failed before implementation because `package.json` was missing (`npm ERR! enoent Could not read package.json`).
+Result: failed before implementation because `package.json` was missing (`npm ERR! enoent Could not read package.json`). This was the original pre-install RED state.
+
+Supplemental post-install missing-module verification (captured after the initial implementation, without rewriting history): temporarily removed `manifest.config.ts`, ran `npm test -- --run tests/unit/manifest.test.ts`, and immediately restored the file. The command failed as intended with `Could not resolve "./manifest.config"` from `vite.config.ts`. This confirms the targeted test/toolchain reports the expected missing-module failure when the production module is absent.
 
 ## GREEN evidence
 
@@ -45,4 +47,4 @@ Result: passed with Vite 7.3.6; MV3 manifest emitted to `dist/manifest.json`. Vi
 
 ## Commit
 
-Commit: `chore: scaffold comment card extension`
+Commit: `b19a2558fbc3dcbbe50fc2d66eed6e9b83808365` (`chore: scaffold comment card extension`)
