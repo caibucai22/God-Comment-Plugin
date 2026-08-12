@@ -32,7 +32,7 @@ export function generateAttributes(content: string, style: CardStyle): CardAttri
   const random = mulberry32(
     fnv1a(`${ATTRIBUTE_ALGORITHM_VERSION}|${normalizeContent(content)}|${style}`),
   );
-  const values = ATTRIBUTE_KEYS.map(() => Math.floor(random() * 101));
+  const values = ATTRIBUTE_KEYS.map(() => Math.floor(random() * 100));
 
   if (Math.max(...values) < 80) {
     values[Math.floor(random() * ATTRIBUTE_KEYS.length)] = 80 + Math.floor(random() * 20);

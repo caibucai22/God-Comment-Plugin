@@ -12,6 +12,12 @@ describe("generateAttributes", () => {
     expect(Math.max(...Object.values(first))).toBeLessThanOrEqual(99);
   });
 
+  it("keeps a naturally generated 100 from bypassing the strong-value cap", () => {
+    const attributes = generateAttributes("review-seed-29", "warm");
+
+    expect(Math.max(...Object.values(attributes))).toBeLessThanOrEqual(99);
+  });
+
   it("normalizes whitespace before creating the stable seed", () => {
     expect(generateAttributes("  同一条\n 评论  ", "warm")).toEqual(
       generateAttributes("同一条 评论", "warm"),
