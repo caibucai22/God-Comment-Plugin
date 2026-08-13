@@ -37,3 +37,9 @@ Implementation commit: `bbbb069e9874251197ee09bb4a1402081de1b1c5` (`feat: add co
 ## Concerns
 
 - The built extension's current content script remains empty, so this controller is not yet wired to a UI entry point; that integration belongs to later tasks.
+
+## Fix round 1: relocated root observer rebinding
+
+- RED: Added a regression that relocates the same connected root to a new parent, waits for the old parent mutation/RAF refresh, then replaces the root under its new parent. It failed because the controller returned early for the same root identity and left the observer on the old parent.
+- GREEN: `refreshRoot()` now also compares the resolved root parent with `observedParent`; a changed parent disconnects the old child-list-only observer and binds a new one to the relocated root parent.
+- Verification: targeted integration tests PASS (12/12); full suite PASS (26/26); `npx tsc --noEmit`, `npm run build`, and `git diff --check` PASS. Build retains the existing empty `index.ts` chunk warning.

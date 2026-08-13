@@ -163,13 +163,14 @@ export class SelectionController {
     if (!this.isActive) return;
 
     const nextRoot = this.dependencies.adapter.findCommentRoot();
-    if (this.root?.isConnected && nextRoot === this.root) return;
+    const nextParent = nextRoot?.parentNode ?? this.observedParent;
+    if (this.root?.isConnected && nextRoot === this.root && nextParent === this.observedParent) return;
 
     this.clearHover();
     this.observer?.disconnect();
     this.observer = null;
     this.root = nextRoot;
-    this.observeParent(nextRoot?.parentNode ?? this.observedParent);
+    this.observeParent(nextParent);
     this.emitState();
   }
 

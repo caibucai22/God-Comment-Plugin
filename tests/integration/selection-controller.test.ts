@@ -207,6 +207,24 @@ describe("SelectionController", () => {
     expect(onStateChange).toHaveBeenLastCalledWith({ active: true, hoveredElement: null });
   });
 
+  it("rebinds to a new parent when the same connected root is relocated", async () => {
+    const controller = createController();
+    controller.enter();
+    const root = document.querySelector("#comments")!;
+    const relocatedParent = document.createElement("aside");
+    document.body.append(relocatedParent);
+
+    relocatedParent.append(root);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const callsBeforeReplacement = adapter.findRootCalls;
+
+    root.replaceWith(root.cloneNode(true));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(adapter.findRootCalls).toBe(callsBeforeReplacement + 1);
+    expect(onStateChange).toHaveBeenLastCalledWith({ active: true, hoveredElement: null });
+  });
+
   it("removes listeners and makes future events inert when destroyed", () => {
     const controller = createController();
     controller.enter();
