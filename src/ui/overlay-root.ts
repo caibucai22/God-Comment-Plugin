@@ -92,7 +92,10 @@ export class OverlayRoot extends EventTarget {
         this.render();
         this.emit("cancel-generate");
       },
-      onGenerate: (options) => this.emit("confirm-generate", { source: this.confirmation!.source, options }),
+      onGenerate: (options) => {
+        if (this.destroyed || !this.confirmation) return;
+        this.emit("confirm-generate", { source: this.confirmation.source, options });
+      },
     });
     this.root.querySelector(".ccg-panel-slot")!.append(card);
   }

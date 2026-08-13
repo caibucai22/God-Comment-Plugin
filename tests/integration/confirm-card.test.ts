@@ -66,6 +66,34 @@ describe("OverlayRoot confirmation card", () => {
     });
   });
 
+  it("keeps a retained generate button inert after destroy", () => {
+    const overlay = openConfirm();
+    const generated: GenerateOptions[] = [];
+    overlay.addEventListener("confirm-generate", (event) => {
+      generated.push(
+        (event as CustomEvent<{ source: CommentCardSource; options: GenerateOptions }>).detail.options,
+      );
+    });
+    const generate = overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement;
+
+    overlay.destroy();
+
+    expect(() => generate.click()).not.toThrow();
+    expect(generated).toEqual([]);
+  });
+
+  it("keeps retained cancel controls inert after destroy", () => {
+    const overlay = openConfirm();
+    let cancelled = false;
+    overlay.addEventListener("cancel-generate", () => (cancelled = true));
+    const cancel = overlay.shadowRoot!.querySelector('[aria-label="取消生成"]') as HTMLButtonElement;
+
+    overlay.destroy();
+
+    expect(() => cancel.click()).not.toThrow();
+    expect(cancelled).toBe(false);
+  });
+
   it("disables and clears cover when the source has no cover URL", () => {
     const overlay = openConfirm({ ...source, videoCoverUrl: undefined });
     const cover = overlay.shadowRoot!.querySelector('[aria-label="包含视频封面"]') as HTMLInputElement;
