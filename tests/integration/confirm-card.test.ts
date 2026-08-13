@@ -1,0 +1,108 @@
+import { afterEach, describe, expect, it } from "vitest";
+import type { CardPreferences, CommentCardSource, GenerateOptions } from "../../src/domain/types";
+import { OverlayRoot } from "../../src/ui/overlay-root";
+
+const source: CommentCardSource = {
+  platform: "bilibili",
+  content: "这是一条很有力量的评论。",
+  authorName: "卡片用户",
+  publishedAt: "2026-08-12",
+  videoCoverUrl: "https://example.test/cover.jpg",
+};
+
+const preferences: CardPreferences = {
+  style: "history",
+  ratio: "9:16",
+  includeCover: true,
+  gameDecoration: false,
+};
+
+describe("OverlayRoot confirmation card", () => {
+  const overlays: OverlayRoot[] = [];
+
+  afterEach(() => {
+    overlays.splice(0).forEach((overlay) => overlay.destroy());
+    document.body.innerHTML = "";
+  });
+
+  function openConfirm(inputSource = source, inputPreferences = preferences): OverlayRoot {
+    const overlay = new OverlayRoot(document);
+    overlays.push(overlay);
+    overlay.mount();
+    overlay.showConfirm(inputSource, inputPreferences);
+    return overlay;
+  }
+
+  it("renders the read-only preview and all four style controls with Chinese labels", () => {
+    const overlay = openConfirm();
+    const root = overlay.shadowRoot!;
+
+    expect(root.textContent).toContain(source.content);
+    expect(root.querySelectorAll('input[name="ccg-style"]')).toHaveLength(4);
+    expect(root.querySelectorAll('input[name="ccg-ratio"]')).toHaveLength(2);
+    expect(root.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    expect(root.querySelector('[aria-label="生成卡片"]')).not.toBeNull();
+    expect(root.querySelector('[aria-label="包含视频封面"]')).not.toBeNull();
+    expect(root.querySelector('[aria-label="添加游戏化装饰"]')).not.toBeNull();
+  });
+
+  it("emits selected typed options on generate", () => {
+    const overlay = openConfirm();
+    let detail: { source: CommentCardSource; options: GenerateOptions } | undefined;
+    overlay.addEventListener("confirm-generate", (event) => {
+      detail = (event as CustomEvent<{ source: CommentCardSource; options: GenerateOptions }>).detail;
+    });
+    const root = overlay.shadowRoot!;
+
+    (root.querySelector('input[value="sss"]') as HTMLInputElement).click();
+    (root.querySelector('input[value="3:4"]') as HTMLInputElement).click();
+    (root.querySelector('[aria-label="包含视频封面"]') as HTMLInputElement).click();
+    (root.querySelector('[aria-label="添加游戏化装饰"]') as HTMLInputElement).click();
+    (root.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).click();
+
+    expect(detail).toEqual({
+      source,
+      options: { style: "sss", ratio: "3:4", includeCover: false, gameDecoration: true },
+    });
+  });
+
+  it("disables and clears cover when the source has no cover URL", () => {
+    const overlay = openConfirm({ ...source, videoCoverUrl: undefined });
+    const cover = overlay.shadowRoot!.querySelector('[aria-label="包含视频封面"]') as HTMLInputElement;
+
+    expect(cover.disabled).toBe(true);
+    expect(cover.checked).toBe(false);
+  });
+
+  it("hides confirmation and emits cancel", () => {
+    const overlay = openConfirm();
+    let cancelled = false;
+    overlay.addEventListener("cancel-generate", () => (cancelled = true));
+
+    (overlay.shadowRoot!.querySelector('[aria-label="取消生成"]') as HTMLButtonElement).click();
+
+    expect(cancelled).toBe(true);
+    expect(overlay.shadowRoot!.querySelector(".ccg-confirm")).toBeNull();
+  });
+
+  it("replaces and dismisses transient-ready status cards without timers", () => {
+    const overlay = openConfirm();
+
+    overlay.showStatus("info", "正在准备");
+    overlay.showStatus("success", "已完成");
+    expect(overlay.shadowRoot!.textContent).toContain("已完成");
+    expect(overlay.shadowRoot!.textContent).not.toContain("正在准备");
+
+    (overlay.shadowRoot!.querySelector('[aria-label="关闭提示"]') as HTMLButtonElement).click();
+    expect(overlay.shadowRoot!.querySelector(".ccg-status")).toBeNull();
+  });
+
+  it("keeps motion safe for users who prefer reduced motion", () => {
+    const overlay = openConfirm();
+    const css = overlay.shadowRoot!.querySelector("style")!.textContent!;
+
+    expect(css).toContain("prefers-reduced-motion: reduce");
+    expect(css).toContain("animation: none");
+    expect(css).toContain("transition: none");
+  });
+});

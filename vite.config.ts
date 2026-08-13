@@ -6,5 +6,6 @@ export default defineConfig({
   plugins: [crx({ manifest })],
   test: {
     environment: "jsdom",
+    css: true,
   },
 });
