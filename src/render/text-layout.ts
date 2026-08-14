@@ -186,15 +186,15 @@ function normalizeSize(value: number, fallback: number): number {
 function validateFontSizes(config: TextLayoutConfig): Pick<TextLayoutConfig, "maxFontSize" | "minFontSize"> {
   const { maxFontSize, minFontSize } = config;
   if (
-    !Number.isFinite(maxFontSize) ||
-    !Number.isFinite(minFontSize) ||
+    !Number.isSafeInteger(maxFontSize) ||
+    !Number.isSafeInteger(minFontSize) ||
     maxFontSize <= 0 ||
     minFontSize <= 0 ||
     maxFontSize < minFontSize ||
     (maxFontSize - minFontSize) % 2 !== 0
   ) {
     throw new RangeError(
-      "maxFontSize and minFontSize must be finite positive values with maxFontSize >= minFontSize and a difference divisible by 2.",
+      "maxFontSize and minFontSize must be positive safe integers with maxFontSize >= minFontSize and a difference divisible by 2.",
     );
   }
   return { maxFontSize, minFontSize };

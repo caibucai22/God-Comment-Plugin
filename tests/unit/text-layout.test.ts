@@ -100,6 +100,19 @@ describe("layoutText", () => {
     ).toThrow(RangeError);
   });
 
+  it("rejects unsafe font-size values before attempting any measurement", () => {
+    const ctx: TextMeasureContext = {
+      font: "",
+      measureText: () => {
+        throw new Error("unsafe font sizes must be rejected before measurement");
+      },
+    };
+
+    expect(() =>
+      layoutText(ctx, "需要布局", { width: 90, height: 80 }, { ...config, maxFontSize: 1e308, minFontSize: 2 }),
+    ).toThrow(RangeError);
+  });
+
   it("uses the deterministic Array.from fallback when Intl.Segmenter is unavailable", () => {
     const descriptor = Object.getOwnPropertyDescriptor(Intl, "Segmenter");
     const ctx = new FakeMeasureContext();

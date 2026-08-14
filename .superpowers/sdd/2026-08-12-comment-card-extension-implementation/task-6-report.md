@@ -47,3 +47,10 @@
 - GREEN: `layoutText` now rejects non-finite/non-positive values, inverted ranges, and ranges whose difference is not divisible by two with a clear `RangeError`. Every accepted range can therefore reach its minimum through exact 2px decrements.
 - Added an explicit `Intl.Segmenter`-unavailable test. It temporarily replaces and restores the exact `Intl.Segmenter` property descriptor in `try/finally`, so no global state leaks between tests.
 - Final verification: targeted layout tests PASS (10/10); full suite PASS (52/52); `npx tsc --noEmit`, `npm run build`, and `git diff --check` PASS. The build retains the pre-existing empty `index.ts` chunk warning.
+
+## Fix round 2: unsafe font-size termination
+
+- Root cause: finite but unsafe values such as `maxFontSize: 1e308` can make `fontSize - 2` equal `fontSize`, leaving the layout loop unable to reach its minimum.
+- RED: a non-measuring context received a `measureText` call instead of the expected `RangeError`, proving invalid values crossed into the layout loop.
+- GREEN: the font-size contract now requires positive safe integers in addition to ordering and 2px alignment, so unsafe sizes are rejected before canvas measurement.
+- Verification: targeted layout tests PASS (11/11); full suite PASS (53/53); `npx tsc --noEmit`, `npm run build`, and `git diff --check` PASS. The build retains the pre-existing empty `index.ts` chunk warning.
