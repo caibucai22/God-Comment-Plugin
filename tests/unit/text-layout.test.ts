@@ -83,6 +83,42 @@ describe("layoutText", () => {
     expect(result.truncated).toBe(false);
   });
 
+  it("rejects font-size ranges that cannot descend in exact two-pixel steps", () => {
+    const ctx = new FakeMeasureContext();
+
+    expect(() =>
+      layoutText(ctx, "需要布局", { width: 90, height: 80 }, { ...config, maxFontSize: 20, minFontSize: 13 }),
+    ).toThrow(RangeError);
+    expect(() =>
+      layoutText(ctx, "需要布局", { width: 90, height: 80 }, { ...config, maxFontSize: Number.NaN }),
+    ).toThrow(RangeError);
+    expect(() =>
+      layoutText(ctx, "需要布局", { width: 90, height: 80 }, { ...config, minFontSize: 0 }),
+    ).toThrow(RangeError);
+    expect(() =>
+      layoutText(ctx, "需要布局", { width: 90, height: 80 }, { ...config, maxFontSize: 12, minFontSize: 20 }),
+    ).toThrow(RangeError);
+  });
+
+  it("uses the deterministic Array.from fallback when Intl.Segmenter is unavailable", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Intl, "Segmenter");
+    const ctx = new FakeMeasureContext();
+
+    try {
+      Object.defineProperty(Intl, "Segmenter", { configurable: true, value: undefined });
+      const result = layoutText(ctx, "supercalifragilistic 中文", { width: 80, height: 300 }, config);
+
+      expect(result.lines.join("")).toBe("supercalifragilistic中文");
+      expect(lineWidths(ctx, result.lines).every((width) => width <= 80)).toBe(true);
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(Intl, "Segmenter", descriptor);
+      } else {
+        Reflect.deleteProperty(Intl, "Segmenter");
+      }
+    }
+  });
+
   it("truncates only the final visible line at the minimum size", () => {
     const ctx = new FakeMeasureContext();
     const result = layoutText(ctx, "这是一个需要在最小字号截断的很长评论内容", { width: 72, height: 30 }, config);

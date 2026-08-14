@@ -39,3 +39,10 @@
 ## Concerns
 
 - `lineHeight` is explicitly a font-size multiplier and the result exposes the resolved pixel height; Task 7 should use that resolved value when positioning text.
+
+## Fix round 1: exact font-size decrement validation
+
+- Root cause: `Math.max(minFontSize, fontSize - 2)` could clamp a final decrement from `14` to an unaligned minimum such as `13`, violating the public 2px decrement invariant.
+- RED: the new invalid-range regression failed with `expected function to throw an error, but it didn't`.
+- GREEN: `layoutText` now rejects non-finite/non-positive values, inverted ranges, and ranges whose difference is not divisible by two with a clear `RangeError`. Every accepted range can therefore reach its minimum through exact 2px decrements.
+- Added an explicit `Intl.Segmenter`-unavailable test. It temporarily replaces and restores the exact `Intl.Segmenter` property descriptor in `try/finally`, so no global state leaks between tests.

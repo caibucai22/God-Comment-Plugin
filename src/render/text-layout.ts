@@ -183,14 +183,30 @@ function normalizeSize(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+function validateFontSizes(config: TextLayoutConfig): Pick<TextLayoutConfig, "maxFontSize" | "minFontSize"> {
+  const { maxFontSize, minFontSize } = config;
+  if (
+    !Number.isFinite(maxFontSize) ||
+    !Number.isFinite(minFontSize) ||
+    maxFontSize <= 0 ||
+    minFontSize <= 0 ||
+    maxFontSize < minFontSize ||
+    (maxFontSize - minFontSize) % 2 !== 0
+  ) {
+    throw new RangeError(
+      "maxFontSize and minFontSize must be finite positive values with maxFontSize >= minFontSize and a difference divisible by 2.",
+    );
+  }
+  return { maxFontSize, minFontSize };
+}
+
 export function layoutText(
   ctx: TextMeasureContext,
   text: string,
   bounds: TextBounds,
   config: TextLayoutConfig,
 ): TextLayoutResult {
-  const maxFontSize = normalizeSize(config.maxFontSize, 1);
-  const minFontSize = Math.min(normalizeSize(config.minFontSize, 1), maxFontSize);
+  const { maxFontSize, minFontSize } = validateFontSizes(config);
   const lineHeightMultiplier = normalizeSize(config.lineHeight, 1);
   const width = Math.max(0, Number.isFinite(bounds.width) ? bounds.width : 0);
   const height = Math.max(0, Number.isFinite(bounds.height) ? bounds.height : 0);
