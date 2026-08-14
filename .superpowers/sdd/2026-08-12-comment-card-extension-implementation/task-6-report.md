@@ -46,3 +46,4 @@
 - RED: the new invalid-range regression failed with `expected function to throw an error, but it didn't`.
 - GREEN: `layoutText` now rejects non-finite/non-positive values, inverted ranges, and ranges whose difference is not divisible by two with a clear `RangeError`. Every accepted range can therefore reach its minimum through exact 2px decrements.
 - Added an explicit `Intl.Segmenter`-unavailable test. It temporarily replaces and restores the exact `Intl.Segmenter` property descriptor in `try/finally`, so no global state leaks between tests.
+- Final verification: targeted layout tests PASS (10/10); full suite PASS (52/52); `npx tsc --noEmit`, `npm run build`, and `git diff --check` PASS. The build retains the pre-existing empty `index.ts` chunk warning.
