@@ -1,0 +1,63 @@
+
+> comment-card-extension@0.1.0 test
+> vitest --run tests/integration/selection-controller.test.ts
+
+
+ RUN  v3.2.7 E:/03-Projects/AiProjects/CommentCardGen-Codex/.worktrees/comment-card-mvp
+
+ ❯ tests/integration/selection-controller.test.ts (18 tests | 1 failed) 230ms
+   ✓ SelectionController > enters and emits an active state 19ms
+   ✓ SelectionController > moves the hover class between resolved comments 13ms
+   × SelectionController > keeps the new comment highlighted when a retargeted pointerout arrives late 16ms
+     → expected <div …(3)></div> to be <div …(3)></div> // Object.is equality
+
+If it should pass with deep equality, replace "toBe" with "toStrictEqual"
+
+Expected: <div …(3)></div>
+Received: serializes to the same string
+
+   ✓ SelectionController > adds a visual hover treatment only to the resolved comment 4ms
+   ✓ SelectionController > owns and removes the production visual layer with the selection hover 4ms
+   ✓ SelectionController > restores pre-existing inline hover styles and priorities on exit 4ms
+   ✓ SelectionController > selects a legal extracted comment and keeps selection mode active 4ms
+   ✓ SelectionController > does not select when extraction returns null 1ms
+   ✓ SelectionController > resolves a comment from the composed path when nested Shadow DOM retargets the document event 3ms
+   ✓ SelectionController > selects a retargeted live-structure comment through the real Bilibili adapter 11ms
+   ✓ SelectionController > exits when Escape is pressed 2ms
+   ✓ SelectionController > prevents the context menu and exits 2ms
+   ✓ SelectionController > exits when a non-comment is clicked 2ms
+   ✓ SelectionController > supports caller-directed exits without treating wheel events as an exit 1ms
+   ✓ SelectionController > rebinds only when the comment root is replaced without scanning comments 19ms
+   ✓ SelectionController > stays active and resumes observation when a replacement root returns to the same parent 59ms
+   ✓ SelectionController > rebinds to a new parent when the same connected root is relocated 63ms
+   ✓ SelectionController > removes listeners and makes future events inert when destroyed 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/selection-controller.test.ts > SelectionController > keeps the new comment highlighted when a retargeted pointerout arrives late
+AssertionError: expected <div …(3)></div> to be <div …(3)></div> // Object.is equality
+
+If it should pass with deep equality, replace "toBe" with "toStrictEqual"
+
+Expected: <div …(3)></div>
+Received: serializes to the same string
+
+
+Compared values have no visual difference.
+
+ ❯ tests/integration/selection-controller.test.ts:171:68
+    169| 
+    170|     expect(second.closest("[data-comment]")!.classList.contains("ccg-c…
+    171|     expect(document.querySelector("[data-ccg-comment-highlight]")).toB…
+       |                                                                    ^
+    172|   });
+    173| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+   Start at  16:05:01
+   Duration  1.96s (transform 93ms, setup 0ms, collect 191ms, tests 230ms, environment 873ms, prepare 191ms)
+

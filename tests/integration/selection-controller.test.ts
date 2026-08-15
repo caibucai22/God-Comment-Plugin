@@ -159,6 +159,7 @@ describe("SelectionController", () => {
     const { root, first, second } = fixture();
 
     dispatch("pointerover", first);
+    const originalHighlight = document.querySelector("[data-ccg-comment-highlight]");
     dispatch("pointerover", second);
     second.dispatchEvent(new MouseEvent("pointerout", {
       bubbles: true,
@@ -167,7 +168,7 @@ describe("SelectionController", () => {
     }));
 
     expect(second.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
-    expect(document.querySelector("[data-ccg-comment-highlight]")).not.toBeNull();
+    expect(document.querySelector("[data-ccg-comment-highlight]")).toBe(originalHighlight);
   });
 
   it("adds a visual hover treatment only to the resolved comment", () => {

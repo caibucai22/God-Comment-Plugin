@@ -161,8 +161,11 @@ export class SelectionController {
   private setHover(comment: Element | null): void {
     if (comment === this.hoveredElement) return;
 
-    this.clearHover();
-    if (!comment) return;
+    if (!comment) {
+      this.clearHover();
+      return;
+    }
+    this.clearHover(true, false);
 
     this.hoveredElement = comment;
     const style = comment instanceof HTMLElement ? comment.style : null;
@@ -185,11 +188,11 @@ export class SelectionController {
     this.emitState();
   }
 
-  private clearHover(): void {
+  private clearHover(preserveHighlight = false, emitState = true): void {
     if (!this.hoveredElement) return;
 
     const { hoveredElement, inlineHoverStyle } = this;
-    this.commentHighlight.hide();
+    if (!preserveHighlight) this.commentHighlight.hide();
     hoveredElement.classList.remove(HOVER_CLASS);
     if (inlineHoverStyle && hoveredElement instanceof HTMLElement) {
       hoveredElement.style.setProperty("outline", inlineHoverStyle.outline, inlineHoverStyle.outlinePriority);
@@ -199,7 +202,7 @@ export class SelectionController {
     }
     this.hoveredElement = null;
     this.inlineHoverStyle = null;
-    if (this.isActive) this.emitState();
+    if (this.isActive && emitState) this.emitState();
   }
 
   private observeCurrentRootParent(): void {

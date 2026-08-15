@@ -1,0 +1,14 @@
+
+> comment-card-extension@0.1.0 test
+> vitest --run tests/integration/selection-controller.test.ts
+
+
+ RUN  v3.2.7 E:/03-Projects/AiProjects/CommentCardGen-Codex/.worktrees/comment-card-mvp
+
+ ✓ tests/integration/selection-controller.test.ts (18 tests) 235ms
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  16:05:41
+   Duration  1.78s (transform 89ms, setup 0ms, collect 176ms, tests 235ms, environment 718ms, prepare 174ms)
+
