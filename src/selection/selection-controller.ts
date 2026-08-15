@@ -18,12 +18,24 @@ export interface SelectionControllerDependencies {
 
 const HOVER_CLASS = "ccg-comment-hover";
 
+interface InlineHoverStyle {
+  readonly outline: string;
+  readonly outlinePriority: string;
+  readonly outlineOffset: string;
+  readonly outlineOffsetPriority: string;
+  readonly borderRadius: string;
+  readonly borderRadiusPriority: string;
+  readonly boxShadow: string;
+  readonly boxShadowPriority: string;
+}
+
 export class SelectionController {
   private hoveredElement: Element | null = null;
   private observer: MutationObserver | null = null;
   private observedParent: Node | null = null;
   private root: Element | null = null;
   private animationFrame: number | null = null;
+  private inlineHoverStyle: InlineHoverStyle | null = null;
   private destroyed = false;
   private isActive = false;
 
@@ -83,13 +95,13 @@ export class SelectionController {
 
   private readonly handlePointerOver = (event: PointerEvent): void => {
     if (!this.isActive || this.isOverlayEvent(event)) return;
-    this.setHover(this.dependencies.adapter.resolveComment(event.target));
+    this.setHover(this.resolveCommentFromEvent(event));
   };
 
   private readonly handlePointerOut = (event: PointerEvent): void => {
     if (!this.isActive || this.isOverlayEvent(event)) return;
 
-    const leaving = this.dependencies.adapter.resolveComment(event.target);
+    const leaving = this.resolveCommentFromEvent(event);
     const entering = this.dependencies.adapter.resolveComment(event.relatedTarget);
     if (leaving && leaving === this.hoveredElement && entering !== leaving) this.clearHover();
   };
@@ -97,7 +109,7 @@ export class SelectionController {
   private readonly handleClick = (event: MouseEvent): void => {
     if (!this.isActive || this.isOverlayEvent(event)) return;
 
-    const comment = this.dependencies.adapter.resolveComment(event.target);
+    const comment = this.resolveCommentFromEvent(event);
     if (!comment) {
       this.exit("outside");
       return;
@@ -128,6 +140,15 @@ export class SelectionController {
     );
   }
 
+  private resolveCommentFromEvent(event: Event): Element | null {
+    for (const target of event.composedPath()) {
+      const comment = this.dependencies.adapter.resolveComment(target);
+      if (comment) return comment;
+    }
+
+    return this.dependencies.adapter.resolveComment(event.target);
+  }
+
   private setHover(comment: Element | null): void {
     if (comment === this.hoveredElement) return;
 
@@ -135,15 +156,38 @@ export class SelectionController {
     if (!comment) return;
 
     this.hoveredElement = comment;
+    const style = comment instanceof HTMLElement ? comment.style : null;
+    this.inlineHoverStyle = style ? {
+      outline: style.getPropertyValue("outline"),
+      outlinePriority: style.getPropertyPriority("outline"),
+      outlineOffset: style.getPropertyValue("outline-offset"),
+      outlineOffsetPriority: style.getPropertyPriority("outline-offset"),
+      borderRadius: style.getPropertyValue("border-radius"),
+      borderRadiusPriority: style.getPropertyPriority("border-radius"),
+      boxShadow: style.getPropertyValue("box-shadow"),
+      boxShadowPriority: style.getPropertyPriority("box-shadow"),
+    } : null;
     comment.classList.add(HOVER_CLASS);
+    style?.setProperty("outline", "2px solid #76e9ff", "important");
+    style?.setProperty("outline-offset", "2px", "important");
+    style?.setProperty("border-radius", "8px", "important");
+    style?.setProperty("box-shadow", "0 0 0 4px rgb(118 233 255 / 20%)", "important");
     this.emitState();
   }
 
   private clearHover(): void {
     if (!this.hoveredElement) return;
 
-    this.hoveredElement.classList.remove(HOVER_CLASS);
+    const { hoveredElement, inlineHoverStyle } = this;
+    hoveredElement.classList.remove(HOVER_CLASS);
+    if (inlineHoverStyle && hoveredElement instanceof HTMLElement) {
+      hoveredElement.style.setProperty("outline", inlineHoverStyle.outline, inlineHoverStyle.outlinePriority);
+      hoveredElement.style.setProperty("outline-offset", inlineHoverStyle.outlineOffset, inlineHoverStyle.outlineOffsetPriority);
+      hoveredElement.style.setProperty("border-radius", inlineHoverStyle.borderRadius, inlineHoverStyle.borderRadiusPriority);
+      hoveredElement.style.setProperty("box-shadow", inlineHoverStyle.boxShadow, inlineHoverStyle.boxShadowPriority);
+    }
     this.hoveredElement = null;
+    this.inlineHoverStyle = null;
     if (this.isActive) this.emitState();
   }
 

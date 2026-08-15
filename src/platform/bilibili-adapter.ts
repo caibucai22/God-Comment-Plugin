@@ -3,10 +3,10 @@ import type { PlatformAdapter } from "./platform-adapter";
 
 const SELECTORS = {
   commentRoot: ["[data-testid='comment-root']", "#commentapp", ".reply-container"],
-  comment: ["[data-testid='comment-item']", ".reply-item", ".sub-reply-item"],
-  content: ["[data-testid='comment-text']", ".reply-content", ".sub-reply-content"],
-  author: ["[data-testid='comment-author']", ".user-name", ".sub-user-name"],
-  publishedAt: ["[data-testid='comment-time']", ".reply-time", ".sub-reply-time"],
+  comment: ["[data-testid='comment-item']", ".reply-item", ".sub-reply-item", "bili-comment-renderer"],
+  content: ["[data-testid='comment-text']", ".reply-content", ".sub-reply-content", "#contents"],
+  author: ["[data-testid='comment-author']", ".user-name", ".sub-user-name", "#user-name"],
+  publishedAt: ["[data-testid='comment-time']", ".reply-time", ".sub-reply-time", "#pubdate"],
   cover: ["[data-testid='player-cover']", ".bpx-player-video-wrap img", ".bilibili-player-video img"],
 } as const;
 
@@ -20,8 +20,50 @@ function findFirst(parent: ParentNode, selectors: readonly string[]): Element | 
 }
 
 function getNormalizedText(parent: ParentNode, selectors: readonly string[]): string | undefined {
-  const text = findFirst(parent, selectors)?.textContent?.replace(/\s+/g, " ").trim();
+  const text = findFirstAcrossOpenShadowRoots(parent, selectors)?.textContent?.replace(/\s+/g, " ").trim();
   return text || undefined;
+}
+
+function findFirstAcrossOpenShadowRoots(parent: ParentNode, selectors: readonly string[]): Element | null {
+  const roots: ParentNode[] = [parent];
+  if (parent instanceof Element && parent.shadowRoot) roots.push(parent.shadowRoot);
+  for (let index = 0; index < roots.length; index += 1) {
+    const root = roots[index]!;
+    const match = findFirst(root, selectors);
+    if (match) return match;
+
+    root.querySelectorAll("*").forEach((element) => {
+      if (element.shadowRoot) roots.push(element.shadowRoot);
+    });
+  }
+
+  return null;
+}
+
+function findClosestAcrossOpenShadowRoots(target: Element, selector: string): Element | null {
+  let current: Element | null = target;
+  while (current) {
+    if (current.matches(selector)) return current;
+    if (current.parentElement) {
+      current = current.parentElement;
+      continue;
+    }
+
+    const root = current.getRootNode();
+    current = root instanceof ShadowRoot ? root.host : null;
+  }
+
+  return null;
+}
+
+function isWithinComposedTree(element: Element, root: Element): boolean {
+  let current: Node | null = element;
+  while (current) {
+    if (current === root) return true;
+    current = current.parentNode ?? (current instanceof ShadowRoot ? current.host : null);
+  }
+
+  return false;
 }
 
 export class BilibiliAdapter implements PlatformAdapter {
@@ -45,9 +87,9 @@ export class BilibiliAdapter implements PlatformAdapter {
   resolveComment(target: EventTarget | null): Element | null {
     if (!(target instanceof Element)) return null;
 
-    const comment = target.closest(SELECTORS.comment.join(","));
+    const comment = findClosestAcrossOpenShadowRoots(target, SELECTORS.comment.join(","));
     const root = this.findCommentRoot();
-    return comment && root?.contains(comment) ? comment : null;
+    return comment && root && isWithinComposedTree(comment, root) ? comment : null;
   }
 
   extractComment(element: Element): CommentCardSource | null {

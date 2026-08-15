@@ -2,7 +2,7 @@
 
 神评卡片是一个 Manifest V3 Chrome 扩展。它在哔哩哔哩视频页中选择评论，在浏览器本地生成 PNG 评论卡片并下载，不上传评论、封面或生成结果。
 
-## 环境与验证
+## 已验证环境与验证
 
 推荐 Windows 11、PowerShell 7、Node.js 22 与 npm。首次安装依赖和 Playwright 自带 Chromium：
 
@@ -11,17 +11,21 @@ npm install
 npx playwright install chromium
 ```
 
+本工作树最近一次环境采集为 Windows 11（运行时标识 `Microsoft Windows NT 10.0.26200.0`）、PowerShell Core 7.6.4、Node.js v22.22.2、npm 10.9.7 和 Playwright 1.62.1。每次准备发布仍应在目标机器重新运行以下完整验证矩阵；具体命令、日志与真实浏览器状态见 [MVP 验收交接](docs/status/2026-08-15-mvp-acceptance-handoff.md)。
+
 常用验证命令：
 
 ```powershell
 npm test -- --run
+npx tsc --noEmit
 npm run build
 npm run test:e2e
+git diff --check
 ```
 
 `npm run test:e2e` 会先正常构建并核对生产 manifest，再生成只匹配 `http://127.0.0.1/*` 的临时 E2E 构建，将 `dist/` 作为 unpacked extension 加载进 persistent Chromium context。测试结束后会再次正常构建，使 `dist/manifest.json` 恢复为生产范围。E2E 使用 Playwright 的 `channel: "chromium"`（完整 bundled Chromium），不静默跳过缺失浏览器；如果浏览器未安装，命令会明确失败并提示执行上面的安装命令。
 
-自动化只访问动态端口上的本机 fixture，不依赖公网或真实哔哩哔哩页面。persistent profile、fixture server 与下载文件在每条测试后清理；共享扩展构建以单 worker 运行。
+自动化只访问动态端口上的本机 fixture，不依赖公网或真实哔哩哔哩页面。persistent profile、fixture server 与下载文件在每条测试后清理；共享扩展构建以单 worker 运行。E2E fixture 通过不等于真实 Bilibili 页面通过；实机验收必须用已加载 unpacked `dist` 的 Chrome，按 [Chrome MCP 真实浏览器检查清单](docs/testing/chrome-mcp-checklist.md) 留存脱敏证据。
 
 ## 在 Chrome 中加载
 

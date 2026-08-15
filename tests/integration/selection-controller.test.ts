@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommentCardSource } from "../../src/domain/types";
+import { BilibiliAdapter } from "../../src/platform/bilibili-adapter";
 import type { PlatformAdapter } from "../../src/platform/platform-adapter";
 import { SelectionController } from "../../src/selection/selection-controller";
 
@@ -57,6 +58,50 @@ function fixture(): { root: Element; first: Element; second: Element; outside: E
   };
 }
 
+function createLiveShadowBilibiliFixture(): { comment: HTMLElement; content: HTMLSpanElement } {
+  document.body.innerHTML = '<section id="commentapp"></section>';
+  const comments = document.createElement("bili-comments");
+  document.querySelector("#commentapp")!.append(comments);
+  const commentsRoot = comments.attachShadow({ mode: "open" });
+  const feed = document.createElement("div");
+  feed.id = "feed";
+  commentsRoot.append(feed);
+
+  const thread = document.createElement("bili-comment-thread-renderer");
+  feed.append(thread);
+  const threadRoot = thread.attachShadow({ mode: "open" });
+  const comment = document.createElement("bili-comment-renderer");
+  threadRoot.append(comment);
+  const commentRoot = comment.attachShadow({ mode: "open" });
+
+  const contentHost = document.createElement("bili-rich-text");
+  contentHost.id = "content";
+  commentRoot.append(contentHost);
+  const contentRoot = contentHost.attachShadow({ mode: "open" });
+  const content = document.createElement("span");
+  content.id = "contents";
+  content.textContent = "Shadow DOM 集成评论";
+  contentRoot.append(content);
+
+  const user = document.createElement("bili-comment-user-info");
+  commentRoot.append(user);
+  const userRoot = user.attachShadow({ mode: "open" });
+  const author = document.createElement("span");
+  author.id = "user-name";
+  author.textContent = "集成测试用户";
+  userRoot.append(author);
+
+  const actions = document.createElement("bili-comment-action-buttons-renderer");
+  commentRoot.append(actions);
+  const actionsRoot = actions.attachShadow({ mode: "open" });
+  const publishedAt = document.createElement("time");
+  publishedAt.id = "pubdate";
+  publishedAt.textContent = "2026-08-15";
+  actionsRoot.append(publishedAt);
+
+  return { comment, content };
+}
+
 describe("SelectionController", () => {
   let adapter: TestAdapter;
   let onSelect: ReturnType<typeof vi.fn>;
@@ -104,6 +149,41 @@ describe("SelectionController", () => {
     expect(second.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
   });
 
+  it("adds a visual hover treatment only to the resolved comment", () => {
+    const controller = createController();
+    controller.enter();
+    const { first, outside } = fixture();
+    const comment = first.closest("[data-comment]") as HTMLElement;
+
+    dispatch("pointerover", first);
+
+    expect(comment.style.getPropertyValue("outline")).toBe("2px solid #76e9ff");
+    expect((outside as HTMLElement).style.getPropertyValue("outline")).toBe("");
+  });
+
+  it("restores pre-existing inline hover styles and priorities on exit", () => {
+    const controller = createController();
+    const { first } = fixture();
+    const comment = first.closest("[data-comment]") as HTMLElement;
+    comment.style.setProperty("outline", "3px dashed black", "important");
+    comment.style.setProperty("outline-offset", "5px", "important");
+    comment.style.setProperty("border-radius", "11px", "important");
+    comment.style.setProperty("box-shadow", "0 0 3px black", "important");
+    controller.enter();
+
+    dispatch("pointerover", first);
+    controller.exit("toggle");
+
+    expect(comment.style.getPropertyValue("outline")).toBe("3px dashed black");
+    expect(comment.style.getPropertyPriority("outline")).toBe("important");
+    expect(comment.style.getPropertyValue("outline-offset")).toBe("5px");
+    expect(comment.style.getPropertyPriority("outline-offset")).toBe("important");
+    expect(comment.style.getPropertyValue("border-radius")).toBe("11px");
+    expect(comment.style.getPropertyPriority("border-radius")).toBe("important");
+    expect(comment.style.getPropertyValue("box-shadow")).toBe("0 0 3px black");
+    expect(comment.style.getPropertyPriority("box-shadow")).toBe("important");
+  });
+
   it("selects a legal extracted comment and keeps selection mode active", () => {
     const controller = createController();
     controller.enter();
@@ -126,6 +206,53 @@ describe("SelectionController", () => {
 
     expect(onSelect).not.toHaveBeenCalled();
     expect(controller.active).toBe(true);
+  });
+
+  it("resolves a comment from the composed path when nested Shadow DOM retargets the document event", () => {
+    const controller = createController();
+    const host = document.createElement("bili-comments");
+    document.querySelector("#comments")!.append(host);
+    const outerRoot = host.attachShadow({ mode: "open" });
+    const component = document.createElement("bili-comment-renderer");
+    outerRoot.append(component);
+    const componentRoot = component.attachShadow({ mode: "open" });
+    const comment = document.createElement("article");
+    comment.dataset.comment = "";
+    componentRoot.append(comment);
+    const target = document.createElement("span");
+    target.textContent = "Shadow DOM target";
+    comment.append(target);
+    controller.enter();
+
+    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true }));
+
+    expect(onSelect).toHaveBeenCalledWith({ platform: "bilibili", content: "A useful comment" });
+    expect(controller.active).toBe(true);
+  });
+
+  it("selects a retargeted live-structure comment through the real Bilibili adapter", () => {
+    const { comment, content } = createLiveShadowBilibiliFixture();
+    const controller = new SelectionController({
+      adapter: new BilibiliAdapter(document, window.location),
+      document,
+      onSelect,
+      onStateChange,
+    });
+    controllers.push(controller);
+    controller.enter();
+
+    content.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true, composed: true }));
+    expect(comment.classList.contains("ccg-comment-hover")).toBe(true);
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true, composed: true });
+    content.dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(onSelect).toHaveBeenCalledWith({
+      platform: "bilibili",
+      content: "Shadow DOM 集成评论",
+      authorName: "集成测试用户",
+      publishedAt: "2026-08-15",
+    });
   });
 
   it("exits when Escape is pressed", () => {
