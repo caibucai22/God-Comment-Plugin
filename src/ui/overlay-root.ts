@@ -7,6 +7,7 @@ type StatusKind = "success" | "error" | "info";
 interface Status {
   kind: StatusKind;
   message: string;
+  action?: "retry-download";
 }
 
 /** Isolated, document-owned host for all content-script UI. */
@@ -16,6 +17,7 @@ export class OverlayRoot extends EventTarget {
   private active = false;
   private confirmation: { source: CommentCardSource; preferences: CardPreferences } | null = null;
   private status: Status | null = null;
+  private generationBusy = false;
   private destroyed = false;
 
   constructor(private readonly document: Document) {
@@ -54,6 +56,18 @@ export class OverlayRoot extends EventTarget {
     this.render();
   }
 
+  showDownloadRetry(message: string): void {
+    if (this.destroyed) return;
+    this.status = { kind: "error", message, action: "retry-download" };
+    this.render();
+  }
+
+  setGenerationBusy(busy: boolean): void {
+    if (this.destroyed || this.generationBusy === busy) return;
+    this.generationBusy = busy;
+    this.render();
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -62,6 +76,7 @@ export class OverlayRoot extends EventTarget {
     this.root = null;
     this.confirmation = null;
     this.status = null;
+    this.generationBusy = false;
   }
 
   private render(): void {
@@ -71,7 +86,7 @@ export class OverlayRoot extends EventTarget {
       <button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>流光卡片核</span></button>
       ${this.active ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
       <div class="ccg-panel-slot"></div>
-      ${this.status ? `<div class="ccg-status ccg-status--${this.status.kind}" role="status"><span></span><button type="button" aria-label="关闭提示">×</button></div>` : ""}
+      ${this.status ? `<div class="ccg-status ccg-status--${this.status.kind}" role="status"><span></span>${this.status.action === "retry-download" ? `<button type="button" aria-label="再次下载">再次下载</button>` : ""}<button type="button" aria-label="关闭提示">×</button></div>` : ""}
     </div>`;
 
     (this.root.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).addEventListener("click", () => {
@@ -80,9 +95,12 @@ export class OverlayRoot extends EventTarget {
     this.root.querySelector('[aria-label="退出评论选择"]')?.addEventListener("click", () => this.emit("exit-selection"));
     const statusMessage = this.root.querySelector(".ccg-status span");
     if (statusMessage && this.status) statusMessage.textContent = this.status.message;
+    this.root.querySelector('[aria-label="再次下载"]')?.addEventListener("click", () => this.emit("retry-download"));
     this.root.querySelector('[aria-label="关闭提示"]')?.addEventListener("click", () => {
+      const cancelledDownload = this.status?.action === "retry-download";
       this.status = null;
       this.render();
+      if (cancelledDownload) this.emit("cancel-download");
     });
 
     if (!this.confirmation) return;
@@ -93,17 +111,20 @@ export class OverlayRoot extends EventTarget {
         this.emit("cancel-generate");
       },
       onGenerate: (options) => {
-        if (this.destroyed || !this.confirmation) return;
+        if (this.destroyed || !this.confirmation || this.generationBusy) return;
         this.emit("confirm-generate", { source: this.confirmation.source, options });
       },
     });
     this.root.querySelector(".ccg-panel-slot")!.append(card);
+    (card.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled = this.generationBusy;
   }
 
-  private emit(type: "toggle-selection" | "exit-selection" | "cancel-generate"): void;
+  private emit(
+    type: "toggle-selection" | "exit-selection" | "cancel-generate" | "retry-download" | "cancel-download",
+  ): void;
   private emit(type: "confirm-generate", detail: { source: CommentCardSource; options: GenerateOptions }): void;
   private emit(
-    type: "toggle-selection" | "exit-selection" | "cancel-generate" | "confirm-generate",
+    type: "toggle-selection" | "exit-selection" | "cancel-generate" | "confirm-generate" | "retry-download" | "cancel-download",
     detail?: { source: CommentCardSource; options: GenerateOptions },
   ): void {
     if (!this.destroyed) this.dispatchEvent(new CustomEvent(type, { detail }));

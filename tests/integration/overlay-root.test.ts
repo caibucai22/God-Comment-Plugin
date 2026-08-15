@@ -62,4 +62,35 @@ describe("OverlayRoot", () => {
     expect(toggles).toEqual([]);
     expect(exits).toEqual([]);
   });
+
+  it("disables generation while busy and restores it after the operation settles", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+    overlay.showConfirm(
+      { platform: "bilibili", content: "忙碌状态测试" },
+      { style: "warm", ratio: "3:4", includeCover: false, gameDecoration: false },
+    );
+
+    overlay.setGenerationBusy(true);
+    expect((overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled).toBe(true);
+
+    overlay.setGenerationBusy(false);
+    expect((overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("renders a retry action and distinguishes retry from dismissing the retained download", () => {
+    const overlay = createOverlay();
+    const events: string[] = [];
+    overlay.addEventListener("retry-download", () => events.push("retry"));
+    overlay.addEventListener("cancel-download", () => events.push("cancel"));
+    overlay.mount();
+
+    overlay.showDownloadRetry("下载失败，请再次下载");
+    (overlay.shadowRoot!.querySelector('[aria-label="再次下载"]') as HTMLButtonElement).click();
+    expect(events).toEqual(["retry"]);
+
+    overlay.showDownloadRetry("下载失败，请再次下载");
+    (overlay.shadowRoot!.querySelector('[aria-label="关闭提示"]') as HTMLButtonElement).click();
+    expect(events).toEqual(["retry", "cancel"]);
+  });
 });

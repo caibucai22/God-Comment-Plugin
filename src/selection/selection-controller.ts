@@ -82,12 +82,12 @@ export class SelectionController {
   }
 
   private readonly handlePointerOver = (event: PointerEvent): void => {
-    if (!this.isActive) return;
+    if (!this.isActive || this.isOverlayEvent(event)) return;
     this.setHover(this.dependencies.adapter.resolveComment(event.target));
   };
 
   private readonly handlePointerOut = (event: PointerEvent): void => {
-    if (!this.isActive) return;
+    if (!this.isActive || this.isOverlayEvent(event)) return;
 
     const leaving = this.dependencies.adapter.resolveComment(event.target);
     const entering = this.dependencies.adapter.resolveComment(event.relatedTarget);
@@ -95,7 +95,7 @@ export class SelectionController {
   };
 
   private readonly handleClick = (event: MouseEvent): void => {
-    if (!this.isActive) return;
+    if (!this.isActive || this.isOverlayEvent(event)) return;
 
     const comment = this.dependencies.adapter.resolveComment(event.target);
     if (!comment) {
@@ -111,7 +111,7 @@ export class SelectionController {
   };
 
   private readonly handleContextMenu = (event: MouseEvent): void => {
-    if (!this.isActive) return;
+    if (!this.isActive || this.isOverlayEvent(event)) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -121,6 +121,12 @@ export class SelectionController {
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (this.isActive && event.key === "Escape") this.exit("escape");
   };
+
+  private isOverlayEvent(event: Event): boolean {
+    return event.composedPath().some(
+      (target) => target instanceof Element && target.hasAttribute("data-ccg-overlay-root"),
+    );
+  }
 
   private setHover(comment: Element | null): void {
     if (comment === this.hoveredElement) return;
