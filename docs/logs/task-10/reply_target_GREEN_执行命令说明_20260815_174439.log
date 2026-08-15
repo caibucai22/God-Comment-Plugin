@@ -1,0 +1,14 @@
+
+> comment-card-extension@0.1.0 test
+> vitest --run tests/unit/bilibili-adapter.test.ts
+
+
+ RUN  v3.2.7 E:/03-Projects/AiProjects/CommentCardGen-Codex/.worktrees/comment-card-mvp
+
+ ✓ tests/unit/bilibili-adapter.test.ts (8 tests) 67ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  17:44:41
+   Duration  1.89s (transform 106ms, setup 0ms, collect 175ms, tests 67ms, environment 923ms, prepare 207ms)
+

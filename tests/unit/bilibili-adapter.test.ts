@@ -9,6 +9,11 @@ function createLiveShadowCommentFixture(): {
   readonly comment: HTMLElement;
   readonly content: HTMLSpanElement;
   readonly visualAnchor: HTMLDivElement;
+  readonly repliesHost: HTMLElement;
+  readonly reply: HTMLElement;
+  readonly replyContent: HTMLSpanElement;
+  readonly replyAnchor: HTMLDivElement;
+  readonly secondReply: HTMLElement;
 } {
   document.body.innerHTML = '<section id="commentapp"></section>';
   const comments = document.createElement("bili-comments");
@@ -59,7 +64,69 @@ function createLiveShadowCommentFixture(): {
   publishedAt.textContent = "2026-08-15";
   actionsRoot.append(publishedAt);
 
-  return { comment, content, visualAnchor: body };
+  const repliesContainer = document.createElement("div");
+  repliesContainer.id = "replies";
+  threadRoot.append(repliesContainer);
+  const repliesHost = document.createElement("bili-comment-replies-renderer");
+  repliesContainer.append(repliesHost);
+  const repliesRoot = repliesHost.attachShadow({ mode: "open" });
+  const expander = document.createElement("div");
+  expander.id = "expander";
+  repliesRoot.append(expander);
+  const expanderContents = document.createElement("div");
+  expanderContents.id = "expander-contents";
+  expander.append(expanderContents);
+
+  function appendReply(replyText: string, replyAuthor: string, replyTime: string) {
+    const reply = document.createElement("bili-comment-reply-renderer");
+    expanderContents.append(reply);
+    const replyRoot = reply.attachShadow({ mode: "open" });
+    const replyAnchor = document.createElement("div");
+    replyAnchor.id = "body";
+    replyRoot.append(replyAnchor);
+    const replyMain = document.createElement("div");
+    replyMain.id = "main";
+    replyAnchor.append(replyMain);
+    const replyUser = document.createElement("bili-comment-user-info");
+    replyMain.append(replyUser);
+    const replyUserRoot = replyUser.attachShadow({ mode: "open" });
+    const replyUserName = document.createElement("span");
+    replyUserName.id = "user-name";
+    replyUserName.textContent = replyAuthor;
+    replyUserRoot.append(replyUserName);
+    const replyRichText = document.createElement("bili-rich-text");
+    replyMain.append(replyRichText);
+    const replyTextRoot = replyRichText.attachShadow({ mode: "open" });
+    const replyContent = document.createElement("span");
+    replyContent.id = "contents";
+    replyContent.textContent = replyText;
+    replyTextRoot.append(replyContent);
+    const replyFooter = document.createElement("div");
+    replyFooter.id = "footer";
+    replyAnchor.append(replyFooter);
+    const replyActions = document.createElement("bili-comment-action-buttons-renderer");
+    replyFooter.append(replyActions);
+    const replyActionsRoot = replyActions.attachShadow({ mode: "open" });
+    const replyPublishedAt = document.createElement("time");
+    replyPublishedAt.id = "pubdate";
+    replyPublishedAt.textContent = replyTime;
+    replyActionsRoot.append(replyPublishedAt);
+    return { reply, replyContent, replyAnchor };
+  }
+
+  const first = appendReply("默认 回复 一", "回复用户一", "2026-08-14");
+  const second = appendReply("默认回复二", "回复用户二", "2026-08-13");
+
+  return {
+    comment,
+    content,
+    visualAnchor: body,
+    repliesHost,
+    reply: first.reply,
+    replyContent: first.replyContent,
+    replyAnchor: first.replyAnchor,
+    secondReply: second.reply,
+  };
 }
 
 describe("BilibiliAdapter", () => {
@@ -138,6 +205,26 @@ describe("BilibiliAdapter", () => {
     };
 
     expect(adapter.getCommentHighlightAnchor(comment)).toBe(visualAnchor);
+  });
+
+  it("resolves each rendered modern reply as its own target without falling back to the thread comment", () => {
+    const { comment, repliesHost, reply, replyContent, replyAnchor, secondReply } = createLiveShadowCommentFixture();
+    const adapter = new BilibiliAdapter(document, window.location);
+
+    expect(adapter.resolveCommentTarget(replyContent)).toEqual({
+      host: reply,
+      anchor: replyAnchor,
+      kind: "reply",
+    });
+    expect(adapter.resolveCommentTarget(secondReply)).toMatchObject({ host: secondReply, kind: "reply" });
+    expect(adapter.resolveCommentTarget(repliesHost)).toBeNull();
+    expect(adapter.resolveComment(replyContent)).not.toBe(comment);
+    expect(adapter.extractComment(reply)).toEqual({
+      platform: "bilibili",
+      content: "默认 回复 一",
+      authorName: "回复用户一",
+      publishedAt: "2026-08-14",
+    });
   });
 
   it("is registered only for Bilibili video pages", () => {

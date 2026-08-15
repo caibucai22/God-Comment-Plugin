@@ -43,44 +43,60 @@
       const thread = document.createElement('bili-comment-thread-renderer');
       feed.append(thread);
       const threadRoot = thread.attachShadow({ mode: 'open' });
-      const parentComment = document.createElement('bili-comment-renderer');
+
+      function createComment(tagName, testId, text, authorText, publishedText) {
+        const comment = document.createElement(tagName);
+        const commentRoot = comment.attachShadow({ mode: 'open' });
+        const style = document.createElement('style');
+        style.textContent = ':host { display: block; margin-top: 16px; } #body { display: block; padding: 20px; border-radius: 12px; background: #1f2937; }';
+        commentRoot.append(style);
+        const body = document.createElement('div');
+        body.id = 'body';
+        commentRoot.append(body);
+        const contentHost = document.createElement('bili-rich-text');
+        body.append(contentHost);
+        const contentRoot = contentHost.attachShadow({ mode: 'open' });
+        const content = document.createElement('span');
+        content.id = 'contents';
+        content.dataset.testid = testId;
+        content.textContent = text;
+        contentRoot.append(content);
+        const user = document.createElement('bili-comment-user-info');
+        body.append(user);
+        const userRoot = user.attachShadow({ mode: 'open' });
+        const author = document.createElement('span');
+        author.id = 'user-name';
+        author.textContent = authorText;
+        userRoot.append(author);
+        const actions = document.createElement('bili-comment-action-buttons-renderer');
+        body.append(actions);
+        const actionsRoot = actions.attachShadow({ mode: 'open' });
+        const publishedAt = document.createElement('time');
+        publishedAt.id = 'pubdate';
+        publishedAt.textContent = publishedText;
+        actionsRoot.append(publishedAt);
+        return comment;
+      }
+
+      const parentComment = createComment('bili-comment-renderer', 'modern-top-comment-text', '默认顶层 Shadow DOM 评论。', '顶层测试用户', '2026-08-15');
+      parentComment.id = 'comment';
       threadRoot.append(parentComment);
-      const parentRoot = parentComment.attachShadow({ mode: 'open' });
+      const repliesContainer = document.createElement('div');
+      repliesContainer.id = 'replies';
+      threadRoot.append(repliesContainer);
       const replies = document.createElement('bili-comment-replies-renderer');
-      parentRoot.append(replies);
+      repliesContainer.append(replies);
       const repliesRoot = replies.attachShadow({ mode: 'open' });
-      const comment = document.createElement('bili-comment-renderer');
-      repliesRoot.append(comment);
-      const commentRoot = comment.attachShadow({ mode: 'open' });
-      const style = document.createElement('style');
-      style.textContent = ':host { display: block; margin-top: 16px; } #body { display: block; padding: 20px; border-radius: 12px; background: #1f2937; }';
-      commentRoot.append(style);
-      const body = document.createElement('div');
-      body.id = 'body';
-      commentRoot.append(body);
-      const contentHost = document.createElement('bili-rich-text');
-      contentHost.id = 'content';
-      body.append(contentHost);
-      const contentRoot = contentHost.attachShadow({ mode: 'open' });
-      const content = document.createElement('span');
-      content.id = 'contents';
-      content.dataset.testid = 'modern-comment-text';
-      content.textContent = '嵌套 Shadow DOM 评论。';
-      contentRoot.append(content);
-      const user = document.createElement('bili-comment-user-info');
-      body.append(user);
-      const userRoot = user.attachShadow({ mode: 'open' });
-      const author = document.createElement('span');
-      author.id = 'user-name';
-      author.textContent = '嵌套用户';
-      userRoot.append(author);
-      const actions = document.createElement('bili-comment-action-buttons-renderer');
-      body.append(actions);
-      const actionsRoot = actions.attachShadow({ mode: 'open' });
-      const publishedAt = document.createElement('time');
-      publishedAt.id = 'pubdate';
-      publishedAt.textContent = '2026-08-15';
-      actionsRoot.append(publishedAt);
+      const expander = document.createElement('div');
+      expander.id = 'expander';
+      repliesRoot.append(expander);
+      const expanderContents = document.createElement('div');
+      expanderContents.id = 'expander-contents';
+      expander.append(expanderContents);
+      expanderContents.append(
+        createComment('bili-comment-reply-renderer', 'modern-reply-text-1', '默认展示回复一。', '回复测试用户一', '2026-08-14'),
+        createComment('bili-comment-reply-renderer', 'modern-reply-text-2', '默认展示回复二。', '回复测试用户二', '2026-08-13'),
+      );
     </script>
   </body>
 </html>

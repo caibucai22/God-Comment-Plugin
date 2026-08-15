@@ -1,9 +1,15 @@
 import type { CommentCardSource } from "../domain/types";
-import type { PlatformAdapter } from "./platform-adapter";
+import type { PlatformAdapter, ResolvedCommentTarget } from "./platform-adapter";
 
 const SELECTORS = {
   commentRoot: ["[data-testid='comment-root']", "#commentapp", ".reply-container"],
-  comment: ["[data-testid='comment-item']", ".reply-item", ".sub-reply-item", "bili-comment-renderer"],
+  comment: [
+    "[data-testid='comment-item']",
+    ".reply-item",
+    ".sub-reply-item",
+    "bili-comment-reply-renderer",
+    "bili-comment-renderer",
+  ],
   content: ["[data-testid='comment-text']", ".reply-content", ".sub-reply-content", "#contents"],
   author: ["[data-testid='comment-author']", ".user-name", ".sub-user-name", "#user-name"],
   publishedAt: ["[data-testid='comment-time']", ".reply-time", ".sub-reply-time", "#pubdate"],
@@ -85,15 +91,30 @@ export class BilibiliAdapter implements PlatformAdapter {
   }
 
   resolveComment(target: EventTarget | null): Element | null {
+    return this.resolveCommentTarget(target)?.host ?? null;
+  }
+
+  resolveCommentTarget(target: EventTarget | null): ResolvedCommentTarget | null {
     if (!(target instanceof Element)) return null;
 
     const comment = findClosestAcrossOpenShadowRoots(target, SELECTORS.comment.join(","));
     const root = this.findCommentRoot();
-    return comment && root && isWithinComposedTree(comment, root) ? comment : null;
+    if (!comment || !root || !isWithinComposedTree(comment, root)) return null;
+
+    const kind = comment.matches("bili-comment-reply-renderer")
+      ? "reply"
+      : comment.matches("bili-comment-renderer")
+        ? "top-level"
+        : "legacy";
+    return {
+      host: comment,
+      anchor: this.getCommentHighlightAnchor(comment),
+      kind,
+    };
   }
 
   getCommentHighlightAnchor(element: Element): Element {
-    return findFirstAcrossOpenShadowRoots(element, ["#body"]) ?? element;
+    return element.shadowRoot?.querySelector("#body") ?? element;
   }
 
   extractComment(element: Element): CommentCardSource | null {

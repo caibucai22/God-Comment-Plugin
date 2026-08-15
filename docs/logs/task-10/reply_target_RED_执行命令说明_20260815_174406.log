@@ -1,0 +1,38 @@
+
+> comment-card-extension@0.1.0 test
+> vitest --run tests/unit/bilibili-adapter.test.ts
+
+
+ RUN  v3.2.7 E:/03-Projects/AiProjects/CommentCardGen-Codex/.worktrees/comment-card-mvp
+
+ ❯ tests/unit/bilibili-adapter.test.ts (8 tests | 1 failed) 63ms
+   ✓ BilibiliAdapter > extracts normalized source from a nested target 21ms
+   ✓ BilibiliAdapter > resolves a nested reply and collapses its whitespace 5ms
+   ✓ BilibiliAdapter > keeps a missing nickname undefined and rejects empty content 7ms
+   ✓ BilibiliAdapter > falls back to the player image when og:image is absent 4ms
+   ✓ BilibiliAdapter > extracts a comment from the nested open Shadow DOM observed on live Bilibili 11ms
+   ✓ BilibiliAdapter > uses the visible comment body as a highlight anchor for a nested open Shadow DOM comment 3ms
+   × BilibiliAdapter > resolves each rendered modern reply as its own target without falling back to the thread comment 8ms
+     → adapter.resolveCommentTarget is not a function
+   ✓ BilibiliAdapter > is registered only for Bilibili video pages 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/bilibili-adapter.test.ts > BilibiliAdapter > resolves each rendered modern reply as its own target without falling back to the thread comment
+TypeError: adapter.resolveCommentTarget is not a function
+ ❯ tests/unit/bilibili-adapter.test.ts:214:20
+    212|     const adapter = new BilibiliAdapter(document, window.location);
+    213| 
+    214|     expect(adapter.resolveCommentTarget(replyContent)).toEqual({
+       |                    ^
+    215|       host: reply,
+    216|       anchor: replyAnchor,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  17:44:08
+   Duration  1.71s (transform 108ms, setup 0ms, collect 132ms, tests 63ms, environment 832ms, prepare 201ms)
+

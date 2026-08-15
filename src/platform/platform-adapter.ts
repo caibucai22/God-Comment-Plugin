@@ -1,5 +1,11 @@
 import type { CommentCardSource } from "../domain/types";
 
+export interface ResolvedCommentTarget {
+  readonly host: Element;
+  readonly anchor: Element;
+  readonly kind: "top-level" | "reply" | "legacy";
+}
+
 export interface PlatformAdapter {
   readonly platform: CommentCardSource["platform"];
   matches(location: Location): boolean;
