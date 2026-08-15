@@ -1,0 +1,55 @@
+
+> comment-card-extension@0.1.0 test
+> vitest --run tests/integration/selection-controller.test.ts
+
+
+ RUN  v3.2.7 E:/03-Projects/AiProjects/CommentCardGen-Codex/.worktrees/comment-card-mvp
+
+ ❯ tests/integration/selection-controller.test.ts (18 tests | 1 failed) 247ms
+   ✓ SelectionController > enters and emits an active state 21ms
+   ✓ SelectionController > moves the hover class between resolved comments 14ms
+   × SelectionController > keeps the new comment highlighted when a retargeted pointerout arrives late 15ms
+     → expected false to be true // Object.is equality
+   ✓ SelectionController > adds a visual hover treatment only to the resolved comment 4ms
+   ✓ SelectionController > owns and removes the production visual layer with the selection hover 5ms
+   ✓ SelectionController > restores pre-existing inline hover styles and priorities on exit 5ms
+   ✓ SelectionController > selects a legal extracted comment and keeps selection mode active 4ms
+   ✓ SelectionController > does not select when extraction returns null 2ms
+   ✓ SelectionController > resolves a comment from the composed path when nested Shadow DOM retargets the document event 4ms
+   ✓ SelectionController > selects a retargeted live-structure comment through the real Bilibili adapter 13ms
+   ✓ SelectionController > exits when Escape is pressed 2ms
+   ✓ SelectionController > prevents the context menu and exits 3ms
+   ✓ SelectionController > exits when a non-comment is clicked 3ms
+   ✓ SelectionController > supports caller-directed exits without treating wheel events as an exit 1ms
+   ✓ SelectionController > rebinds only when the comment root is replaced without scanning comments 26ms
+   ✓ SelectionController > stays active and resumes observation when a replacement root returns to the same parent 62ms
+   ✓ SelectionController > rebinds to a new parent when the same connected root is relocated 62ms
+   ✓ SelectionController > removes listeners and makes future events inert when destroyed 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/selection-controller.test.ts > SelectionController > keeps the new comment highlighted when a retargeted pointerout arrives late
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/integration/selection-controller.test.ts:169:87
+    167|     }));
+    168| 
+    169|     expect(second.closest("[data-comment]")!.classList.contains("ccg-c…
+       |                                                                                       ^
+    170|     expect(document.querySelector("[data-ccg-comment-highlight]")).not…
+    171|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+   Start at  16:01:24
+   Duration  23.48s (transform 198ms, setup 0ms, collect 250ms, tests 247ms, environment 21.57s, prepare 798ms)
+

@@ -153,6 +153,23 @@ describe("SelectionController", () => {
     expect(second.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
   });
 
+  it("keeps the new comment highlighted when a retargeted pointerout arrives late", () => {
+    const controller = createController();
+    controller.enter();
+    const { root, first, second } = fixture();
+
+    dispatch("pointerover", first);
+    dispatch("pointerover", second);
+    second.dispatchEvent(new MouseEvent("pointerout", {
+      bubbles: true,
+      cancelable: true,
+      relatedTarget: root,
+    }));
+
+    expect(second.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
+    expect(document.querySelector("[data-ccg-comment-highlight]")).not.toBeNull();
+  });
+
   it("adds a visual hover treatment only to the resolved comment", () => {
     const controller = createController();
     controller.enter();

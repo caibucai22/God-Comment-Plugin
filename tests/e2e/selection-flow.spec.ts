@@ -178,3 +178,19 @@ test("uses the production visual layer for a nested modern Shadow DOM comment", 
   await expect(confirm.getByText("嵌套 Shadow DOM 评论。")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("keeps the visual layer active while moving directly between comments", async ({ extension }) => {
+  const { page, url, errors } = extension;
+  await page.goto(url);
+  await enterSelection(page);
+  const comments = page.getByTestId("comment-item");
+  const highlight = page.locator("[data-ccg-comment-highlight]");
+
+  await comments.first().hover();
+  await expect(highlight).toBeVisible();
+  await comments.nth(1).hover();
+
+  await expect(highlight).toBeVisible();
+  await expect(comments.nth(1)).toHaveClass(/ccg-comment-hover/);
+  expect(errors).toEqual([]);
+});

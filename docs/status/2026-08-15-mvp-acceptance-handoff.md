@@ -2,7 +2,7 @@
 
 ## 结论状态
 
-- 自动化验证：`PASS`，当前为 107/107 单元与集成测试、4/4 E2E；日志已纳入 `docs/logs/task-10/`。
+- 自动化验证：`PASS`，当前为 108/108 单元与集成测试、5/5 E2E；日志已纳入 `docs/logs/task-10/`。
 - 真实 Bilibili 人工验证：入口、顶层评论选择、卡片生成及本地保存为 `PASS`。原构建的选中特效为 `FAIL`；修复构建待人工复测。新版嵌套回复为 `NOT RUN`。
 - 发布判定：核心链路可用，但选中特效和新版嵌套回复尚未完成真实页面复测，不宣称完整实机验收通过。
 
@@ -17,10 +17,10 @@
 
 | 项目 | 命令/检查 | 结果 | 日志/备注 |
 | --- | --- | --- | --- |
-| 单元与集成测试 | `npm test -- --run` | `PASS`（107/107） | `docs/logs/task-10/npm_test_执行命令说明_20260815_133810.log` |
+| 单元与集成测试 | `npm test -- --run` | `PASS`（108/108） | `docs/logs/task-10/hover_fix_full_test_执行命令说明_20260815_160300.log` |
 | TypeScript | `npx tsc --noEmit` | `PASS` | 初次检查发现测试替身缺少新接口并记录于 `docs/logs/task-10/tsc_执行命令说明_20260815_133826.log`；补齐后复检 exit 0 |
 | 生产构建 | `npm run build` | `PASS` | `docs/logs/task-10/build_执行命令说明_20260815_133826.log` |
-| E2E fixture | `npm run test:e2e` | `PASS`（4/4） | `docs/logs/task-10/e2e_执行命令说明_20260815_133907.log`；覆盖生产视觉层和现代嵌套 open Shadow DOM fixture，仍非真实 Bilibili |
+| E2E fixture | `npm run test:e2e` | `PASS`（5/5） | `docs/logs/task-10/hover_fix_e2e_执行命令说明_20260815_160300.log`；覆盖生产视觉层、现代嵌套 open Shadow DOM fixture，以及评论间连续移动，仍非真实 Bilibili |
 | 生产 manifest | 精确 Bilibili match、仅 storage/downloads、无 host_permissions | `PASS` | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终生产Manifest审查后_执行命令说明_20260815_131655.log` |
 | Git 格式检查 | `git diff --check` | `PASS` | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终Git差异检查_执行命令说明_20260815_130734.log`；仅有 CRLF 预警，无 diff whitespace error |
 
@@ -53,6 +53,7 @@
 - `SelectionController` 从 `event.composedPath()` 解析被 Shadow boundary 重定向的事件。
 - 合法评论解析到 Shadow DOM 内可见的 `#body` 锚点；页面顶层独立高亮层绘制渐变流光和 12px 内弱水雾，并随滚动、缩放更新位置。
 - `prefers-reduced-motion: reduce` 下关闭高亮层循环动画；退出选择、移出评论或销毁时移除视觉层。
+- Shadow DOM 将非空 `pointerout.relatedTarget` 重定向为外层宿主时，不再提前清除刚切换到下一条评论的高亮；后续 `pointerover` 负责确定真实目标。真正离开文档或进入扩展浮层仍立即清理。
 - 先后保留 RED 日志与 GREEN 回归：`RED真实ShadowDOM适配器回归_执行命令说明_20260815_130205.log`、`RED事件重定向回归_执行命令说明_20260815_130217.log`、`RED生产hover视觉回归_执行命令说明_20260815_130244.log`、`GREEN真实ShadowDOM最终回归_执行命令说明_20260815_130454.log`、`GREEN类型与ShadowDOM回归_执行命令说明_20260815_130617.log`。
 
 ## 发布前复核

@@ -108,7 +108,11 @@ export class SelectionController {
 
     const leaving = this.resolveCommentFromEvent(event);
     const entering = this.dependencies.adapter.resolveComment(event.relatedTarget);
-    if (leaving && leaving === this.hoveredElement && entering !== leaving) this.clearHover();
+    if (!leaving || leaving !== this.hoveredElement || entering === leaving) return;
+
+    const enteringOverlay = event.relatedTarget instanceof Element
+      && event.relatedTarget.closest("[data-ccg-overlay-root]") !== null;
+    if (enteringOverlay || event.relatedTarget === null) this.clearHover();
   };
 
   private readonly handleClick = (event: MouseEvent): void => {
