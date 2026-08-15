@@ -1,6 +1,7 @@
 import type { CommentCardSource } from "../domain/types";
-import type { PlatformAdapter } from "../platform/platform-adapter";
+import type { PlatformAdapter, ResolvedCommentTarget } from "../platform/platform-adapter";
 import { CommentHighlight } from "./comment-highlight";
+import { deepElementFromPoint } from "./deep-element-from-point";
 
 export type SelectionExitReason = "escape" | "contextmenu" | "outside" | "hint" | "toggle";
 
@@ -15,6 +16,7 @@ export interface SelectionControllerDependencies {
   document: Document;
   onSelect: (source: CommentCardSource) => void;
   onStateChange: (state: SelectionState) => void;
+  resolveElementFromPoint?: (document: Document, clientX: number, clientY: number) => Element | null;
 }
 
 const HOVER_CLASS = "ccg-comment-hover";
@@ -35,7 +37,9 @@ export class SelectionController {
   private observer: MutationObserver | null = null;
   private observedParent: Node | null = null;
   private root: Element | null = null;
-  private animationFrame: number | null = null;
+  private rootRefreshFrame: number | null = null;
+  private pointerReconcileFrame: number | null = null;
+  private lastPointerPosition: { clientX: number; clientY: number } | null = null;
   private readonly commentHighlight: CommentHighlight;
   private inlineHoverStyle: InlineHoverStyle | null = null;
   private destroyed = false;
@@ -83,31 +87,48 @@ export class SelectionController {
   private addListeners(): void {
     const { document } = this.dependencies;
     document.addEventListener("pointerover", this.handlePointerOver, true);
+    document.addEventListener("pointermove", this.handlePointerMove, true);
     document.addEventListener("pointerout", this.handlePointerOut, true);
     document.addEventListener("click", this.handleClick, true);
     document.addEventListener("contextmenu", this.handleContextMenu, true);
     document.addEventListener("keydown", this.handleKeyDown, true);
+    document.addEventListener("scroll", this.handleViewportChange, true);
+    document.defaultView?.addEventListener("resize", this.handleViewportChange);
   }
 
   private removeListeners(): void {
     const { document } = this.dependencies;
     document.removeEventListener("pointerover", this.handlePointerOver, true);
+    document.removeEventListener("pointermove", this.handlePointerMove, true);
     document.removeEventListener("pointerout", this.handlePointerOut, true);
     document.removeEventListener("click", this.handleClick, true);
     document.removeEventListener("contextmenu", this.handleContextMenu, true);
     document.removeEventListener("keydown", this.handleKeyDown, true);
+    document.removeEventListener("scroll", this.handleViewportChange, true);
+    document.defaultView?.removeEventListener("resize", this.handleViewportChange);
   }
 
   private readonly handlePointerOver = (event: PointerEvent): void => {
     if (!this.isActive || this.isOverlayEvent(event)) return;
-    this.setHover(this.resolveCommentFromEvent(event));
+    this.setHoverTarget(this.resolveTargetFromEvent(event));
+  };
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (!this.isActive) return;
+    if (this.isOverlayEvent(event)) {
+      this.clearHover();
+      return;
+    }
+
+    this.lastPointerPosition = { clientX: event.clientX, clientY: event.clientY };
+    this.schedulePointerReconciliation();
   };
 
   private readonly handlePointerOut = (event: PointerEvent): void => {
     if (!this.isActive || this.isOverlayEvent(event)) return;
 
-    const leaving = this.resolveCommentFromEvent(event);
-    const entering = this.dependencies.adapter.resolveComment(event.relatedTarget);
+    const leaving = this.resolveTargetFromEvent(event)?.host ?? null;
+    const entering = this.dependencies.adapter.resolveCommentTarget(event.relatedTarget)?.host ?? null;
     if (!leaving || leaving !== this.hoveredElement || entering === leaving) return;
 
     const enteringOverlay = event.relatedTarget instanceof Element
@@ -118,15 +139,16 @@ export class SelectionController {
   private readonly handleClick = (event: MouseEvent): void => {
     if (!this.isActive || this.isOverlayEvent(event)) return;
 
-    const comment = this.resolveCommentFromEvent(event);
-    if (!comment) {
+    const target = this.resolveTargetFromEvent(event)
+      ?? this.resolveTargetAt(event.clientX, event.clientY);
+    if (!target) {
       this.exit("outside");
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    const source = this.dependencies.adapter.extractComment(comment);
+    const source = this.dependencies.adapter.extractComment(target.host);
     if (source) this.dependencies.onSelect(source);
     this.clearHover();
   };
@@ -143,22 +165,45 @@ export class SelectionController {
     if (this.isActive && event.key === "Escape") this.exit("escape");
   };
 
+  private readonly handleViewportChange = (): void => {
+    if (this.isActive && this.lastPointerPosition) this.schedulePointerReconciliation();
+  };
+
   private isOverlayEvent(event: Event): boolean {
     return event.composedPath().some(
       (target) => target instanceof Element && target.hasAttribute("data-ccg-overlay-root"),
     );
   }
 
-  private resolveCommentFromEvent(event: Event): Element | null {
+  private resolveTargetFromEvent(event: Event): ResolvedCommentTarget | null {
     for (const target of event.composedPath()) {
-      const comment = this.dependencies.adapter.resolveComment(target);
+      const comment = this.dependencies.adapter.resolveCommentTarget(target);
       if (comment) return comment;
     }
 
-    return this.dependencies.adapter.resolveComment(event.target);
+    return this.dependencies.adapter.resolveCommentTarget(event.target);
   }
 
-  private setHover(comment: Element | null): void {
+  private resolveTargetAt(clientX: number, clientY: number): ResolvedCommentTarget | null {
+    const element = this.dependencies.resolveElementFromPoint
+      ? this.dependencies.resolveElementFromPoint(this.dependencies.document, clientX, clientY)
+      : deepElementFromPoint(this.dependencies.document, clientX, clientY);
+    return this.dependencies.adapter.resolveCommentTarget(element);
+  }
+
+  private schedulePointerReconciliation(): void {
+    if (this.pointerReconcileFrame !== null || !this.lastPointerPosition) return;
+
+    this.pointerReconcileFrame = requestAnimationFrame(() => {
+      this.pointerReconcileFrame = null;
+      if (!this.isActive || !this.lastPointerPosition) return;
+      const { clientX, clientY } = this.lastPointerPosition;
+      this.setHoverTarget(this.resolveTargetAt(clientX, clientY));
+    });
+  }
+
+  private setHoverTarget(target: ResolvedCommentTarget | null): void {
+    const comment = target?.host ?? null;
     if (comment === this.hoveredElement) return;
 
     if (!comment) {
@@ -180,7 +225,7 @@ export class SelectionController {
       boxShadowPriority: style.getPropertyPriority("box-shadow"),
     } : null;
     comment.classList.add(HOVER_CLASS);
-    this.commentHighlight.show(this.dependencies.adapter.getCommentHighlightAnchor(comment));
+    this.commentHighlight.show(target?.anchor ?? this.dependencies.adapter.getCommentHighlightAnchor(comment));
     style?.setProperty("outline", "2px solid #76e9ff", "important");
     style?.setProperty("outline-offset", "2px", "important");
     style?.setProperty("border-radius", "8px", "important");
@@ -215,10 +260,10 @@ export class SelectionController {
   }
 
   private readonly handleRootMutation = (): void => {
-    if (!this.isActive || this.animationFrame !== null) return;
+    if (!this.isActive || this.rootRefreshFrame !== null) return;
 
-    this.animationFrame = requestAnimationFrame(() => {
-      this.animationFrame = null;
+    this.rootRefreshFrame = requestAnimationFrame(() => {
+      this.rootRefreshFrame = null;
       this.refreshRoot();
     });
   };
@@ -251,10 +296,15 @@ export class SelectionController {
     this.observer = null;
     this.observedParent = null;
     this.root = null;
-    if (this.animationFrame !== null) {
-      cancelAnimationFrame(this.animationFrame);
-      this.animationFrame = null;
+    if (this.rootRefreshFrame !== null) {
+      cancelAnimationFrame(this.rootRefreshFrame);
+      this.rootRefreshFrame = null;
     }
+    if (this.pointerReconcileFrame !== null) {
+      cancelAnimationFrame(this.pointerReconcileFrame);
+      this.pointerReconcileFrame = null;
+    }
+    this.lastPointerPosition = null;
   }
 
   private emitState(reason?: SelectionExitReason): void {

@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommentCardSource } from "../../src/domain/types";
 import { BilibiliAdapter } from "../../src/platform/bilibili-adapter";
 import type { PlatformAdapter } from "../../src/platform/platform-adapter";
-import { SelectionController } from "../../src/selection/selection-controller";
+import {
+  SelectionController,
+  type SelectionControllerDependencies,
+} from "../../src/selection/selection-controller";
 
 class TestAdapter implements PlatformAdapter {
   readonly platform = "bilibili" as const;
@@ -23,6 +26,11 @@ class TestAdapter implements PlatformAdapter {
 
   resolveComment(target: EventTarget | null): Element | null {
     return target instanceof Element ? target.closest("[data-comment]") : null;
+  }
+
+  resolveCommentTarget(target: EventTarget | null) {
+    const host = this.resolveComment(target);
+    return host ? { host, anchor: host, kind: "legacy" as const } : null;
   }
 
   getCommentHighlightAnchor(element: Element): Element {
@@ -126,8 +134,8 @@ describe("SelectionController", () => {
     vi.restoreAllMocks();
   });
 
-  function createController(): SelectionController {
-    const controller = new SelectionController({ adapter, document, onSelect, onStateChange });
+  function createController(overrides: Partial<SelectionControllerDependencies> = {}): SelectionController {
+    const controller = new SelectionController({ adapter, document, onSelect, onStateChange, ...overrides });
     controllers.push(controller);
     return controller;
   }
@@ -169,6 +177,30 @@ describe("SelectionController", () => {
 
     expect(second.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
     expect(document.querySelector("[data-ccg-comment-highlight]")).toBe(originalHighlight);
+  });
+
+  it("reconciles the comment under the last pointer position after scrolling", async () => {
+    const { first, second } = fixture();
+    let hit: Element | null = first;
+    const resolveElementFromPoint = vi.fn(() => hit);
+    const controller = createController({ resolveElementFromPoint });
+    controller.enter();
+
+    first.dispatchEvent(new MouseEvent("pointermove", {
+      bubbles: true,
+      composed: true,
+      clientX: 120,
+      clientY: 240,
+    }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(first.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
+
+    hit = second;
+    document.dispatchEvent(new Event("scroll", { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(second.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
+    expect(resolveElementFromPoint).toHaveBeenLastCalledWith(document, 120, 240);
   });
 
   it("adds a visual hover treatment only to the resolved comment", () => {
