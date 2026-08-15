@@ -236,7 +236,7 @@ export async function createContentApp(
     if (!destroyed) controller.exit("hint");
   };
   const onCancelGenerate: EventListener = () => {
-    if (destroyed) return;
+    if (destroyed || generating) return;
     if (releaseRetained()) overlay.showStatus("info", "已取消下载");
     overlay.setSelectionActive(controller.active);
   };

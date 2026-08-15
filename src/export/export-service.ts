@@ -207,7 +207,8 @@ const pad = (value: number): string => String(value).padStart(2, "0");
 
 export function createPngFilename(clock: () => Date = () => new Date()): string {
   const now = clock();
-  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const year = String(now.getFullYear()).padStart(4, "0");
+  const date = `${year}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
   const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   return `神评卡片-bilibili-${date}-${time}.png`;
 }

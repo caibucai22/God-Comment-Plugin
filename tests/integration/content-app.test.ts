@@ -1,3 +1,4 @@
+/** @vitest-environment-options { "url": "https://www.bilibili.com/video/BV1supported" } */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   CardAttributes,
@@ -164,9 +165,12 @@ describe("content application composition", () => {
     realApps.splice(0).forEach((app) => app.destroy());
     document.body.innerHTML = "";
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  async function makeRealDomHarness() {
+  async function makeRealDomHarness(
+    overrides: Partial<Pick<ContentAppDependencies, "renderCard" | "exportPng">> = {},
+  ) {
     document.body.innerHTML = '<div data-real-comment>真实评论节点</div>';
     const comment = document.querySelector("[data-real-comment]") as HTMLElement;
     const states: SelectionState[] = [];
@@ -201,8 +205,11 @@ describe("content application composition", () => {
       loadPreferences: async () => preferences,
       savePreferences: async (input) => input,
       generateAttributes: () => attributes,
-      renderCard: async () => ({ canvas: document.createElement("canvas"), coverFallbackUsed: false }),
-      exportPng: async () => undefined,
+      renderCard: overrides.renderCard ?? (async () => ({
+        canvas: document.createElement("canvas"),
+        coverFallbackUsed: false,
+      })),
+      exportPng: overrides.exportPng ?? (async () => undefined),
       createFilename: () => "card.png",
     });
     if (!app || !overlay || !controller) throw new Error("real content app did not initialize");
@@ -292,6 +299,47 @@ describe("content application composition", () => {
 
     expect(harness.controller.active).toBe(true);
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("keeps current, retained, and programmatic cancel inert while real generation is busy", async () => {
+    const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
+    const exporting = deferred<void>();
+    const exportPng = vi.fn(() => exporting.promise);
+    const harness = await makeRealDomHarness({ renderCard: () => rendering.promise, exportPng });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    const retainedCancel = harness.overlay.shadowRoot!.querySelector(
+      '[aria-label="取消生成"]',
+    ) as HTMLButtonElement;
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).click();
+    const renderingCancel = harness.overlay.shadowRoot!.querySelector(
+      '[aria-label="取消生成"]',
+    ) as HTMLButtonElement;
+    expect(renderingCancel.disabled).toBe(true);
+
+    retainedCancel.click();
+    harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    expect(harness.controller.active).toBe(true);
+
+    rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
+    await vi.waitFor(() => expect(exportPng).toHaveBeenCalledOnce());
+    const exportingCancel = harness.overlay.shadowRoot!.querySelector(
+      '[aria-label="取消生成"]',
+    ) as HTMLButtonElement;
+    expect(exportingCancel.disabled).toBe(true);
+
+    exportingCancel.click();
+    harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    expect(harness.controller.active).toBe(true);
+
+    exporting.resolve();
+    await settle();
+    expect(exportPng).toHaveBeenCalledOnce();
+    expect(harness.controller.active).toBe(false);
+    expect(harness.states.at(-1)?.reason).toBe("toggle");
   });
 
   it("shows the already-extracted source with current preferences and cancel preserves active selection", async () => {
@@ -538,5 +586,16 @@ describe("content application composition", () => {
 
     expect(first).toBe(second);
     expect(harness.overlay.mounts).toBe(1);
+  });
+
+  it("does not auto-mount when imported in test mode on a supported page", async () => {
+    document.body.innerHTML = '<main id="supported-page"></main>';
+    vi.resetModules();
+
+    await import("../../src/content/index");
+    await Promise.resolve();
+
+    expect(document.querySelector("[data-ccg-overlay-root]")).toBeNull();
+    expect(document.querySelector("#supported-page")).not.toBeNull();
   });
 });

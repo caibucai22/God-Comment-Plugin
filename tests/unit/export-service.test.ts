@@ -48,6 +48,14 @@ describe("PNG export service", () => {
     );
   });
 
+  it("pads years below 1000 to exactly four digits", () => {
+    const date = new Date(0);
+    date.setFullYear(7, 0, 2);
+    date.setHours(3, 4, 5, 0);
+
+    expect(createPngFilename(() => date)).toBe("神评卡片-bilibili-00070102-030405.png");
+  });
+
   it("requests an image/png Blob and revokes its URL only after Chrome accepts the download", async () => {
     const accepted = deferred<number>();
     const downloads: Array<{ url: string; filename: string; saveAs: boolean }> = [];

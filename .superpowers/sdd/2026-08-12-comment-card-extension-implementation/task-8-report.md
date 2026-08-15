@@ -27,13 +27,17 @@
 - Destroy-during-render GREEN: destroyed checks after asynchronous save/render boundaries prevent any later export.
 - Real Shadow DOM integration RED: real OverlayRoot + SelectionController tests failed all specified interactions: toggle stayed active, hint became `outside`, and confirmation cancel lost active selection. A fourth test showed overlay context menu was consumed.
 - Real Shadow DOM integration GREEN: a single shared overlay-host `composedPath()` guard restored all four interactions; focused content/selection suites passed 29/29.
+- Root review round 1 busy-cancel RED: with real OverlayRoot and SelectionController, the current Cancel button remained enabled during a pending render (`expected false to be true`), and retained/programmatic cancellation could alter confirmation state while the async operation continued.
+- Root review round 1 busy-cancel GREEN: current and retained Cancel controls are inert while busy, programmatic `cancel-generate` is guarded by the same application lock, and the single render/export operation completes normally.
+- Four-digit year RED/GREEN: year 7 initially produced `70102`; the filename helper now produces the strict `00070102` date prefix.
+- Supported-page import coverage: the content integration file uses a real `https://www.bilibili.com/video/...` jsdom URL and verifies that importing/reset-importing the module in test mode creates no overlay host.
 
 ## Verification
 
 - `npm test -- --run tests/unit/export-service.test.ts tests/integration/content-app.test.ts tests/integration/overlay-root.test.ts tests/integration/confirm-card.test.ts` — PASS before review fixes (32/32).
 - `npm test -- --run tests/integration/content-app.test.ts tests/integration/selection-controller.test.ts` — PASS after the Shadow DOM capture fix (29/29).
 - `npm test -- --run tests/unit/export-service.test.ts` — PASS after callback-success coverage (9/9).
-- `npm test -- --run` — PASS (94/94 across 12 files), final fresh run immediately before commit.
+- `npm test -- --run` — PASS (97/97 across 12 files), final fresh run immediately before the review-fix commit.
 - `npx tsc --noEmit` — PASS, final fresh run.
 - `npm run build` — PASS; Vite transformed 16 modules and emitted the non-empty content chunk.
 - `git diff --check` — PASS.
@@ -47,6 +51,7 @@
 - Content listeners are named and removed; controller observers/listeners, overlay host, pending retained URL, and busy UI state are all cleaned idempotently.
 - A destroyed app does not continue from pending save/render into render/export work.
 - Generation is guarded both in OverlayRoot and the application before the first asynchronous boundary.
+- Busy generation disables both Generate and Cancel. Old retained Cancel nodes and synthetic `cancel-generate` events cannot close confirmation or mutate selection state until the operation settles.
 - Only the four preference fields are constructed and persisted; generated attributes and source content remain local.
 - Production bootstrap is isolated from test imports and the built content chunk is non-empty.
 
@@ -55,6 +60,7 @@
 - Initial read-only review found one Critical issue: SelectionController document-capture listeners treated retargeted Shadow DOM controls as outside clicks. It also found two Minor test gaps: callback-success coverage and a direct isolated-import bootstrap assertion.
 - The Critical issue was reproduced with real components in four failing tests and fixed at the event-source boundary. Callback success was also covered with delayed acceptance and revocation assertions.
 - Focused re-review found no unresolved Critical or Important issues and returned `Ready: Yes`.
+- Root review round 1 found one Important busy-cancel inconsistency and two Minor gaps (direct supported-page import coverage and strict four-digit years). All three were reproduced or covered and resolved with focused tests.
 
 ## Commit
 
@@ -62,6 +68,6 @@
 
 ## Concerns and Next Step
 
-- Test-mode bootstrap isolation is implemented through Vite's `import.meta.env.MODE`; a special isolated-module auto-mount test was not added because the production build and explicit bootstrap integration already exercise the intended boundary. Real browser verification should still confirm exactly one overlay host.
+- Test-mode bootstrap isolation is implemented through Vite's `import.meta.env.MODE` and now has direct import coverage on a supported Bilibili URL. Real browser verification should still confirm exactly one overlay host.
 - Task 9/10 browser verification should prefer the installed `chrome-mcp-tools` for real Chrome and extension interaction. Playwright remains the repeatable automated baseline for regression coverage.
 - No browser `alert`, backend, AI, React, Tailwind, Framer Motion, or html2canvas was introduced.

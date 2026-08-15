@@ -106,6 +106,7 @@ export class OverlayRoot extends EventTarget {
     if (!this.confirmation) return;
     const card = createConfirmCard(this.document, this.confirmation.source, this.confirmation.preferences, {
       onCancel: () => {
+        if (this.destroyed || this.generationBusy) return;
         this.confirmation = null;
         this.render();
         this.emit("cancel-generate");
@@ -117,6 +118,7 @@ export class OverlayRoot extends EventTarget {
     });
     this.root.querySelector(".ccg-panel-slot")!.append(card);
     (card.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled = this.generationBusy;
+    (card.querySelector('[aria-label="取消生成"]') as HTMLButtonElement).disabled = this.generationBusy;
   }
 
   private emit(
