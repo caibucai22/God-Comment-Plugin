@@ -110,7 +110,8 @@ export class SelectionController {
 
   private readonly handlePointerOver = (event: PointerEvent): void => {
     if (!this.isActive || this.isOverlayEvent(event)) return;
-    this.setHoverTarget(this.resolveTargetFromEvent(event));
+    const target = this.resolveTargetFromEvent(event);
+    if (target) this.setHoverTarget(target);
   };
 
   private readonly handlePointerMove = (event: PointerEvent): void => {

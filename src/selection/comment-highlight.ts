@@ -7,6 +7,7 @@ export class CommentHighlight {
   private anchor: Element | null = null;
   private layer: HTMLDivElement | null = null;
   private listening = false;
+  private lastRect: DOMRect | null = null;
 
   constructor(private readonly document: Document) {}
 
@@ -23,6 +24,7 @@ export class CommentHighlight {
     this.layer?.remove();
     this.layer = null;
     this.anchor = null;
+    this.lastRect = null;
   }
 
   destroy(): void {
@@ -69,15 +71,25 @@ export class CommentHighlight {
       return;
     }
 
-    const { left, top, width, height } = this.anchor.getBoundingClientRect();
+    const rect = this.anchor.getBoundingClientRect();
+    const { left, top, width, height } = rect;
     if (width <= 0 || height <= 0) {
       this.layer.hidden = true;
       return;
     }
 
     this.layer.hidden = false;
+    const previous = this.lastRect;
+    const distance = previous
+      ? Math.hypot(
+          left + width / 2 - (previous.left + previous.width / 2),
+          top + height / 2 - (previous.top + previous.height / 2),
+        )
+      : Number.POSITIVE_INFINITY;
+    this.layer.toggleAttribute("data-ccg-smooth", distance <= 240);
     this.layer.style.width = `${width}px`;
     this.layer.style.height = `${height}px`;
     this.layer.style.transform = `translate3d(${left}px, ${top - 2}px, 0px)`;
+    this.lastRect = rect;
   };
 }

@@ -46,4 +46,28 @@ describe("CommentHighlight", () => {
     highlight.hide();
     expect(document.querySelector("[data-ccg-comment-highlight]")).toBeNull();
   });
+
+  it("reuses one layer with a smooth near transition and an immediate far jump", () => {
+    const first = document.createElement("article");
+    const near = document.createElement("article");
+    const far = document.createElement("article");
+    document.body.append(first, near, far);
+    vi.spyOn(first, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 40, 300, 100));
+    vi.spyOn(near, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 180, 300, 100));
+    vi.spyOn(far, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 700, 300, 100));
+    const highlight = new CommentHighlight(document);
+    highlights.push(highlight);
+
+    highlight.show(first);
+    const layer = document.querySelector<HTMLElement>("[data-ccg-comment-highlight]")!;
+    expect(layer.hasAttribute("data-ccg-smooth")).toBe(false);
+
+    highlight.show(near);
+    expect(document.querySelector("[data-ccg-comment-highlight]")).toBe(layer);
+    expect(layer.hasAttribute("data-ccg-smooth")).toBe(true);
+
+    highlight.show(far);
+    expect(document.querySelector("[data-ccg-comment-highlight]")).toBe(layer);
+    expect(layer.hasAttribute("data-ccg-smooth")).toBe(false);
+  });
 });

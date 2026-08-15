@@ -179,6 +179,18 @@ describe("SelectionController", () => {
     expect(document.querySelector("[data-ccg-comment-highlight]")).toBe(originalHighlight);
   });
 
+  it("does not clear a valid highlight for an unresolved intermediate pointerover", () => {
+    const controller = createController();
+    controller.enter();
+    const { root, first } = fixture();
+
+    dispatch("pointerover", first);
+    dispatch("pointerover", root);
+
+    expect(first.closest("[data-comment]")!.classList.contains("ccg-comment-hover")).toBe(true);
+    expect(document.querySelector("[data-ccg-comment-highlight]")).not.toBeNull();
+  });
+
   it("reconciles the comment under the last pointer position after scrolling", async () => {
     const { first, second } = fixture();
     let hit: Element | null = first;

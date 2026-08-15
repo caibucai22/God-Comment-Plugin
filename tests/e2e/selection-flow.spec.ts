@@ -163,19 +163,28 @@ test("reduced motion disables the cyclic entry animation without blocking select
   await expect(page.getByRole("region", { name: "生成评论卡片" })).toBeVisible();
 });
 
-test("uses the production visual layer for a nested modern Shadow DOM comment", async ({ extension }) => {
+test("selects a real-structure modern reply and keeps the visual layer continuous", async ({ extension }) => {
   const { page, url, errors } = extension;
   await page.goto(url);
   await enterSelection(page);
-  const comment = page.getByTestId("modern-comment-text");
+  const topLevel = page.getByTestId("modern-top-comment-text");
+  const firstReply = page.getByTestId("modern-reply-text-1");
+  const secondReply = page.getByTestId("modern-reply-text-2");
+  const highlight = page.locator("[data-ccg-comment-highlight]");
 
-  await comment.hover();
-  await expect(page.locator("[data-ccg-comment-highlight]")).toBeVisible();
-  await comment.click();
+  await topLevel.hover();
+  await expect(highlight).toBeVisible();
+  await highlight.evaluate((element) => { element.setAttribute("data-e2e-identity", "continuous"); });
+  await firstReply.hover();
+  await expect(highlight).toHaveAttribute("data-e2e-identity", "continuous");
+  await secondReply.hover();
+  await expect(highlight).toHaveAttribute("data-e2e-identity", "continuous");
+  await firstReply.click();
 
   const confirm = page.getByRole("region", { name: "生成评论卡片" });
   await expect(confirm).toBeVisible();
-  await expect(confirm.getByText("嵌套 Shadow DOM 评论。")).toBeVisible();
+  await expect(confirm.getByText("默认展示回复一。")).toBeVisible();
+  await expect(confirm.getByText("默认顶层 Shadow DOM 评论。")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -192,5 +201,23 @@ test("keeps the visual layer active while moving directly between comments", asy
 
   await expect(highlight).toBeVisible();
   await expect(comments.nth(1)).toHaveClass(/ccg-comment-hover/);
+  expect(errors).toEqual([]);
+});
+
+test("reconciles a new comment under a stationary pointer after scrolling", async ({ extension }) => {
+  const { page, url, errors } = extension;
+  await page.goto(url);
+  await enterSelection(page);
+  const comments = page.getByTestId("comment-item");
+  const firstBox = await comments.first().boundingBox();
+  const secondBox = await comments.nth(1).boundingBox();
+  if (!firstBox || !secondBox) throw new Error("fixture comments have no visible geometry");
+
+  await comments.first().hover();
+  await expect(comments.first()).toHaveClass(/ccg-comment-hover/);
+  await page.evaluate((deltaY) => window.scrollBy(0, deltaY), secondBox.y - firstBox.y);
+
+  await expect(comments.nth(1)).toHaveClass(/ccg-comment-hover/);
+  await expect(page.locator("[data-ccg-comment-highlight]")).toBeVisible();
   expect(errors).toEqual([]);
 });
