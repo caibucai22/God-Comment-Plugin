@@ -3,8 +3,8 @@
 ## 结论状态
 
 - 自动化验证：`PASS`，当前为 115/115 单元与集成测试、6/6 E2E；日志已纳入 `docs/logs/task-10/`。
-- 真实 Bilibili 人工验证：入口、顶层评论选择、卡片生成及本地保存为 `PASS`。原构建的选中特效为 `FAIL`；修复构建待人工复测。新版嵌套回复为 `NOT RUN`。
-- 发布判定：核心链路可用，但选中特效和新版嵌套回复尚未完成真实页面复测，不宣称完整实机验收通过。
+- 真实 Bilibili 人工验证：入口、顶层评论选择、卡片生成及本地保存为 `PASS`；用户于 2026-08-15 确认默认展示回复识别、动画连续切换和滚动目标更新满足本次验收要求。
+- 发布判定：本次“评论/默认回复目标识别与动画连续性修复”验收 `PASS`。折叠展开与回复分页仍明确不在本次范围内。
 
 ## 范围与证据规则
 
@@ -32,18 +32,18 @@
 | Chrome 版本 | `Chrome/151.0.0.0`（Windows 11） |
 | unpacked extension 是否已加载 | `PASS`：用户完成加载；扩展 Reload 后刷新视频页才重新注入 |
 | 测试 URL 范围（脱敏） | `https://www.bilibili.com/video/BV1xx411c7mD/`（登出态；已移除 `vd_source` query；滚动至 `#commentapp` 后评论可见） |
-| 真实 Bilibili 结果 | 入口、顶层评论选择、生成及本地保存 `PASS`；原 hover 视觉 `FAIL`；修复后视觉与现代嵌套回复 `NOT RUN` |
+| 真实 Bilibili 结果 | `PASS`：入口、顶层评论、默认展示回复、连续动画、滚动目标更新、生成及本地保存满足本次验收 |
 | fixture MCP 结果 | `NOT RUN`；即使后续执行，也不得替代真实 Bilibili 结果 |
-| 入口/评论/回复/滚动 | 入口和顶层评论 `PASS`；现代嵌套回复、滚动保持选择 `NOT RUN` |
+| 入口/评论/回复/滚动 | `PASS`：默认展示回复可作为独立目标，动画切换与滚动更新通过人工验收 |
 | 五种退出路径 | `NOT RUN` |
-| 合法评论 hover | 原构建 `FAIL`；独立页面高亮层修复自动化 `PASS`，真实页面待复测 |
+| 合法评论 hover | `PASS`：用户确认动画过渡效果良好，满足本次验收 |
 | 四种样式、两种比例、封面、游戏化默认值 | `NOT RUN` |
 | 稳定属性、长文本、英文、Emoji | `NOT RUN` |
 | 封面 fallback、PNG 非空和精确尺寸 | `NOT RUN` |
 | Bilibili 原有交互、reduced motion、console | 扩展交互与 reduced motion 为 `BLOCKED`；MCP DOM 侦测期间浏览器 console 为 `PASS`（无 error/warning），不等同于扩展 console 验收 |
 | 隐私/权限及证据脱敏 | `NOT RUN` |
 | Snapshot / screenshot / console / download / operation-log 路径 | screenshot 已在 MCP 响应内可见但 `NOT SAVED`：Chrome MCP workspace-root 限制拒绝仓库/worktree 路径；其余扩展流程证据为 `BLOCKED` |
-| 阻塞因素 | 无加载阻塞；剩余为修复后人工视觉复测和现代嵌套回复真实页面验证 |
+| 阻塞因素 | 无本次修复范围内阻塞；折叠展开和回复分页不在范围内 |
 
 ## 已纳入的真实 DOM 兼容性修复
 
