@@ -92,7 +92,6 @@ export async function createContentApp(
   if (!adapter) return null;
 
   const overlay = dependencies.createOverlay(dependencies.document);
-  overlay.mount();
 
   let preferences: CardPreferences;
   try {
@@ -101,6 +100,7 @@ export async function createContentApp(
     overlay.destroy();
     throw error;
   }
+  overlay.mount();
 
   let destroyed = false;
   let generating = false;

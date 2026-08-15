@@ -13,4 +13,18 @@ const manifest = {
   ],
 } satisfies ManifestV3Export;
 
+export function manifestForMode(mode: string): ManifestV3Export {
+  if (mode !== "e2e") return manifest;
+
+  return {
+    ...manifest,
+    content_scripts: [
+      {
+        matches: ["http://127.0.0.1/*"],
+        js: ["src/content/index.ts"],
+      },
+    ],
+  };
+}
+
 export default manifest;

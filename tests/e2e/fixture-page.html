@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta property="og:image" content="/cover.svg" />
+    <title>神评卡片 E2E Fixture</title>
+    <style>
+      body { margin: 0; color: #e9eef8; background: #111827; font: 16px/1.6 system-ui, sans-serif; }
+      main { width: min(760px, calc(100% - 48px)); margin: 48px auto; }
+      .reply-container { display: grid; gap: 16px; }
+      .reply-item { padding: 20px; border: 2px solid transparent; border-radius: 12px; background: #1f2937; }
+      .reply-item.ccg-comment-hover { border-color: #76e9ff; outline: 3px solid rgba(118, 233, 255, .28); }
+      .user-name { color: #8eeeff; }
+      .reply-time { margin-left: 12px; color: #9ca3af; }
+      .outside { margin-top: 24px; padding: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>评论区</h1>
+      <section id="commentapp" class="reply-container" data-testid="comment-root">
+        <article class="reply-item" data-testid="comment-item">
+          <a class="user-name" data-testid="comment-author">纸飞机</a>
+          <span class="reply-time" data-testid="comment-time">2026-08-15</span>
+          <p class="reply-content" data-testid="comment-text">历史不是过去的回声，而是今天仍在发生的选择。</p>
+        </article>
+        <article class="reply-item" data-testid="comment-item">
+          <a class="user-name" data-testid="comment-author">云朵</a>
+          <span class="reply-time" data-testid="comment-time">2026-08-14</span>
+          <p class="reply-content" data-testid="comment-text">确定性 fixture 中的第二条评论。</p>
+        </article>
+      </section>
+      <button type="button" class="outside" data-testid="outside">评论区外按钮</button>
+    </main>
+  </body>
+</html>

@@ -233,7 +233,20 @@ describe("content application composition", () => {
     expect(loadPreferences).not.toHaveBeenCalled();
   });
 
-  it("mounts before loading preferences and toggles selection enter/exit with synchronized state", async () => {
+  it("does not expose the overlay while preferences are still loading", async () => {
+    const pendingPreferences = deferred<CardPreferences>();
+    const harness = makeHarness({ loadPreferences: () => pendingPreferences.promise });
+
+    const initialization = createContentApp(harness.dependencies);
+    await Promise.resolve();
+
+    expect(harness.overlay.mounts).toBe(0);
+    pendingPreferences.resolve({ ...preferences });
+    await initialization;
+    expect(harness.overlay.mounts).toBe(1);
+  });
+
+  it("loads preferences before mounting and toggles selection enter/exit with synchronized state", async () => {
     const order: string[] = [];
     const harness = makeHarness({
       createOverlay: () => {
@@ -250,7 +263,7 @@ describe("content application composition", () => {
     harness.overlay.emit("toggle-selection");
     harness.overlay.emit("exit-selection");
 
-    expect(order).toEqual(["mount", "load"]);
+    expect(order).toEqual(["load", "mount"]);
     expect(harness.controller.enters).toBe(2);
     expect(harness.controller.exits).toEqual(["toggle", "hint"]);
     expect(harness.overlay.selectionStates).toEqual([false, true, false, true, false]);

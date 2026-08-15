@@ -33,7 +33,9 @@ export class BilibiliAdapter implements PlatformAdapter {
   ) {}
 
   matches(location: Location): boolean {
-    return location.hostname === "www.bilibili.com" && location.pathname.startsWith("/video/");
+    const productionPage = location.hostname === "www.bilibili.com";
+    const e2eFixture = import.meta.env.MODE === "e2e" && location.hostname === "127.0.0.1";
+    return (productionPage || e2eFixture) && location.pathname.startsWith("/video/");
   }
 
   findCommentRoot(): Element | null {
