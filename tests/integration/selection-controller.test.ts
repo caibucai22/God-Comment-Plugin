@@ -25,6 +25,10 @@ class TestAdapter implements PlatformAdapter {
     return target instanceof Element ? target.closest("[data-comment]") : null;
   }
 
+  getCommentHighlightAnchor(element: Element): Element {
+    return element;
+  }
+
   extractComment(): CommentCardSource | null {
     return this.extracted;
   }
@@ -159,6 +163,18 @@ describe("SelectionController", () => {
 
     expect(comment.style.getPropertyValue("outline")).toBe("2px solid #76e9ff");
     expect((outside as HTMLElement).style.getPropertyValue("outline")).toBe("");
+  });
+
+  it("owns and removes the production visual layer with the selection hover", () => {
+    const controller = createController();
+    controller.enter();
+    const { first } = fixture();
+
+    dispatch("pointerover", first);
+    expect(document.querySelector("[data-ccg-comment-highlight]")).not.toBeNull();
+
+    controller.exit("toggle");
+    expect(document.querySelector("[data-ccg-comment-highlight]")).toBeNull();
   });
 
   it("restores pre-existing inline hover styles and priorities on exit", () => {

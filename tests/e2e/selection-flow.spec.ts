@@ -80,6 +80,11 @@ test("loads the unpacked extension and downloads a non-empty PNG through the ful
   const comment = page.getByTestId("comment-item").first();
   await comment.hover();
   await expect(comment).toHaveClass(/ccg-comment-hover/);
+  const highlight = page.locator("[data-ccg-comment-highlight]");
+  await expect(highlight).toBeVisible();
+  expect(await highlight.evaluate((element) => getComputedStyle(element, "::before").animationName)).toBe(
+    "ccg-comment-border-flow",
+  );
   await comment.click();
 
   const confirm = page.getByRole("region", { name: "生成评论卡片" });
@@ -149,6 +154,27 @@ test("reduced motion disables the cyclic entry animation without blocking select
   expect(await entry.evaluate((element) => getComputedStyle(element, "::before").animationName)).toBe("none");
 
   await enterSelection(page);
-  await page.getByTestId("comment-item").nth(1).click();
+  const comment = page.getByTestId("comment-item").nth(1);
+  await comment.hover();
+  const highlight = page.locator("[data-ccg-comment-highlight]");
+  await expect(highlight).toBeVisible();
+  expect(await highlight.evaluate((element) => getComputedStyle(element, "::before").animationName)).toBe("none");
+  await comment.click();
   await expect(page.getByRole("region", { name: "生成评论卡片" })).toBeVisible();
+});
+
+test("uses the production visual layer for a nested modern Shadow DOM comment", async ({ extension }) => {
+  const { page, url, errors } = extension;
+  await page.goto(url);
+  await enterSelection(page);
+  const comment = page.getByTestId("modern-comment-text");
+
+  await comment.hover();
+  await expect(page.locator("[data-ccg-comment-highlight]")).toBeVisible();
+  await comment.click();
+
+  const confirm = page.getByRole("region", { name: "生成评论卡片" });
+  await expect(confirm).toBeVisible();
+  await expect(confirm.getByText("嵌套 Shadow DOM 评论。")).toBeVisible();
+  expect(errors).toEqual([]);
 });

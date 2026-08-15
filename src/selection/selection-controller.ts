@@ -1,5 +1,6 @@
 import type { CommentCardSource } from "../domain/types";
 import type { PlatformAdapter } from "../platform/platform-adapter";
+import { CommentHighlight } from "./comment-highlight";
 
 export type SelectionExitReason = "escape" | "contextmenu" | "outside" | "hint" | "toggle";
 
@@ -35,11 +36,14 @@ export class SelectionController {
   private observedParent: Node | null = null;
   private root: Element | null = null;
   private animationFrame: number | null = null;
+  private readonly commentHighlight: CommentHighlight;
   private inlineHoverStyle: InlineHoverStyle | null = null;
   private destroyed = false;
   private isActive = false;
 
-  constructor(private readonly dependencies: SelectionControllerDependencies) {}
+  constructor(private readonly dependencies: SelectionControllerDependencies) {
+    this.commentHighlight = new CommentHighlight(dependencies.document);
+  }
 
   get active(): boolean {
     return this.isActive;
@@ -62,6 +66,7 @@ export class SelectionController {
     this.clearHover();
     this.removeListeners();
     this.stopObserving();
+    this.commentHighlight.destroy();
     this.emitState(reason);
   }
 
@@ -168,6 +173,7 @@ export class SelectionController {
       boxShadowPriority: style.getPropertyPriority("box-shadow"),
     } : null;
     comment.classList.add(HOVER_CLASS);
+    this.commentHighlight.show(this.dependencies.adapter.getCommentHighlightAnchor(comment));
     style?.setProperty("outline", "2px solid #76e9ff", "important");
     style?.setProperty("outline-offset", "2px", "important");
     style?.setProperty("border-radius", "8px", "important");
@@ -179,6 +185,7 @@ export class SelectionController {
     if (!this.hoveredElement) return;
 
     const { hoveredElement, inlineHoverStyle } = this;
+    this.commentHighlight.hide();
     hoveredElement.classList.remove(HOVER_CLASS);
     if (inlineHoverStyle && hoveredElement instanceof HTMLElement) {
       hoveredElement.style.setProperty("outline", inlineHoverStyle.outline, inlineHoverStyle.outlinePriority);

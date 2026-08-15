@@ -13,21 +13,21 @@
 | --- | --- |
 | 执行日期/时区 | |
 | 执行人/控制器 | |
-| Chrome 版本 | Chrome/151.0.0.0（仅 DOM 侦测；扩展未加载） |
-| 扩展版本/`dist` 构建时间 | |
+| Chrome 版本 | Chrome/151.0.0.0 |
+| 扩展版本/`dist` 构建时间 | `430e7ae` 后的人工构建；选中特效修复包待复测 |
 | 测试 URL 范围（脱敏） | `https://www.bilibili.com/video/BV1xx411c7mD/`（移除 tracking query） |
 | 证据目录/文件 | screenshot：`NOT SAVED (MCP workspace-root restriction)` |
-| 总体结论 | `BLOCKED` |
-| 阻塞项 | `extensionHosts: []`；无法通过原生文件夹选择器加载 unpacked `dist` |
+| 总体结论 | `FAIL`：核心生成链路可用，选中特效修复包待复测 |
+| 阻塞项 | 新版嵌套回复尚未在真实页面验证；修复后的流光视觉尚未人工复测 |
 
 ## 入口、选择与站点兼容性
 
 | 检查项 | 结果 | 备注/证据 |
 | --- | --- | --- |
-| 受支持视频页出现且仅出现一个“开启评论选择”入口 | `NOT RUN` | |
-| 普通评论能识别为可选目标 | `NOT RUN` | |
+| 受支持视频页出现且仅出现一个“开启评论选择”入口 | `PASS` | 扩展 Reload 后刷新视频页，入口出现 |
+| 普通评论能识别为可选目标 | `PASS` | 已人工选择一条顶层评论 |
 | 嵌套回复能识别为可选目标 | `NOT RUN` | |
-| 仅合法评论悬停时附加 `ccg-comment-hover` 视觉状态 | `NOT RUN` | |
+| 仅合法评论悬停时附加 `ccg-comment-hover` 视觉状态 | `FAIL` | 原包无可见效果；独立高亮层修复已通过自动化，待人工复测 |
 | 非评论区域悬停、点击不被误选 | `NOT RUN` | |
 | 滚轮滚动后仍处于选择模式，评论区域可继续识别 | `NOT RUN` | |
 | 原有 B 站点击、回复、展开、滚动和右键以外的交互未被扩展破坏 | `NOT RUN` | |
@@ -56,7 +56,7 @@
 | 长文本正常排版、不溢出 | `NOT RUN` | |
 | 英文和 Emoji 正常排版、不报错 | `NOT RUN` | |
 | 封面不可用时出现可理解的 fallback，仍可完成生成 | `NOT RUN` | |
-| 下载 PNG 非空，且像素尺寸与所选比例/导出规格精确一致 | `NOT RUN` | 记录文件大小和宽×高，不保存评论图像内容 |
+| 下载 PNG 非空，且像素尺寸与所选比例/导出规格精确一致 | `PASS` | 已人工确认生成并保存至本地；未保存评论图像证据 |
 
 ## 无障碍、控制台与隐私
 
@@ -72,8 +72,8 @@
 
 | 证据类别 | 路径/标识 | 状态 | 备注 |
 | --- | --- | --- | --- |
-| 已加载 unpacked extension 的 Chrome 状态 | `extensionHosts: []` | `BLOCKED` | 未加载 unpacked `dist` |
-| 入口 accessibility snapshot | | `BLOCKED` | 扩展未加载 |
+| 已加载 unpacked extension 的 Chrome 状态 | 用户人工加载 | `PASS` | Reload 后刷新页面完成注入 |
+| 入口 accessibility snapshot | 用户人工观察 | `PASS` | 右下角入口可见 |
 | Shadow DOM evaluate（宿主、入口、提示） | MCP response（未存盘） | `PASS`（仅页面 DOM） | `#commentapp > bili-comments` 存在；20 个 thread host；未记录评论内容 |
 | hover/确认面板截图 | | `NOT RUN` | |
 | 下载文件信息 | | `NOT RUN` | |

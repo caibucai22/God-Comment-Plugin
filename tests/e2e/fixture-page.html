@@ -10,7 +10,6 @@
       main { width: min(760px, calc(100% - 48px)); margin: 48px auto; }
       .reply-container { display: grid; gap: 16px; }
       .reply-item { padding: 20px; border: 2px solid transparent; border-radius: 12px; background: #1f2937; }
-      .reply-item.ccg-comment-hover { border-color: #76e9ff; outline: 3px solid rgba(118, 233, 255, .28); }
       .user-name { color: #8eeeff; }
       .reply-time { margin-left: 12px; color: #9ca3af; }
       .outside { margin-top: 24px; padding: 12px; }
@@ -33,5 +32,55 @@
       </section>
       <button type="button" class="outside" data-testid="outside">评论区外按钮</button>
     </main>
+    <script>
+      const app = document.querySelector('#commentapp');
+      const comments = document.createElement('bili-comments');
+      app.append(comments);
+      const commentsRoot = comments.attachShadow({ mode: 'open' });
+      const feed = document.createElement('div');
+      feed.id = 'feed';
+      commentsRoot.append(feed);
+      const thread = document.createElement('bili-comment-thread-renderer');
+      feed.append(thread);
+      const threadRoot = thread.attachShadow({ mode: 'open' });
+      const parentComment = document.createElement('bili-comment-renderer');
+      threadRoot.append(parentComment);
+      const parentRoot = parentComment.attachShadow({ mode: 'open' });
+      const replies = document.createElement('bili-comment-replies-renderer');
+      parentRoot.append(replies);
+      const repliesRoot = replies.attachShadow({ mode: 'open' });
+      const comment = document.createElement('bili-comment-renderer');
+      repliesRoot.append(comment);
+      const commentRoot = comment.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent = ':host { display: block; margin-top: 16px; } #body { display: block; padding: 20px; border-radius: 12px; background: #1f2937; }';
+      commentRoot.append(style);
+      const body = document.createElement('div');
+      body.id = 'body';
+      commentRoot.append(body);
+      const contentHost = document.createElement('bili-rich-text');
+      contentHost.id = 'content';
+      body.append(contentHost);
+      const contentRoot = contentHost.attachShadow({ mode: 'open' });
+      const content = document.createElement('span');
+      content.id = 'contents';
+      content.dataset.testid = 'modern-comment-text';
+      content.textContent = '嵌套 Shadow DOM 评论。';
+      contentRoot.append(content);
+      const user = document.createElement('bili-comment-user-info');
+      body.append(user);
+      const userRoot = user.attachShadow({ mode: 'open' });
+      const author = document.createElement('span');
+      author.id = 'user-name';
+      author.textContent = '嵌套用户';
+      userRoot.append(author);
+      const actions = document.createElement('bili-comment-action-buttons-renderer');
+      body.append(actions);
+      const actionsRoot = actions.attachShadow({ mode: 'open' });
+      const publishedAt = document.createElement('time');
+      publishedAt.id = 'pubdate';
+      publishedAt.textContent = '2026-08-15';
+      actionsRoot.append(publishedAt);
+    </script>
   </body>
 </html>

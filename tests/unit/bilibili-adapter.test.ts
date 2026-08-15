@@ -8,6 +8,7 @@ const fixture = readFileSync("tests/fixtures/bilibili-comments.html", "utf8");
 function createLiveShadowCommentFixture(): {
   readonly comment: HTMLElement;
   readonly content: HTMLSpanElement;
+  readonly visualAnchor: HTMLDivElement;
 } {
   document.body.innerHTML = '<section id="commentapp"></section>';
   const comments = document.createElement("bili-comments");
@@ -58,7 +59,7 @@ function createLiveShadowCommentFixture(): {
   publishedAt.textContent = "2026-08-15";
   actionsRoot.append(publishedAt);
 
-  return { comment, content };
+  return { comment, content, visualAnchor: body };
 }
 
 describe("BilibiliAdapter", () => {
@@ -128,6 +129,15 @@ describe("BilibiliAdapter", () => {
       authorName: "Shadow 用户",
       publishedAt: "2026-08-15",
     });
+  });
+
+  it("uses the visible comment body as a highlight anchor for a nested open Shadow DOM comment", () => {
+    const { comment, visualAnchor } = createLiveShadowCommentFixture();
+    const adapter = new BilibiliAdapter(document, window.location) as unknown as {
+      getCommentHighlightAnchor(element: Element): Element;
+    };
+
+    expect(adapter.getCommentHighlightAnchor(comment)).toBe(visualAnchor);
   });
 
   it("is registered only for Bilibili video pages", () => {

@@ -5,6 +5,7 @@ export interface PlatformAdapter {
   matches(location: Location): boolean;
   findCommentRoot(): Element | null;
   resolveComment(target: EventTarget | null): Element | null;
+  getCommentHighlightAnchor(element: Element): Element;
   extractComment(element: Element): CommentCardSource | null;
   getVideoCoverUrl(): string | undefined;
 }

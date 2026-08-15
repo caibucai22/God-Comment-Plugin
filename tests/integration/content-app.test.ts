@@ -109,6 +109,7 @@ function adapter(): PlatformAdapter {
     matches: () => true,
     findCommentRoot: () => null,
     resolveComment: () => null,
+    getCommentHighlightAnchor: (element) => element,
     extractComment: () => null,
     getVideoCoverUrl: () => source.videoCoverUrl,
   };
@@ -184,6 +185,7 @@ describe("content application composition", () => {
         const element = target instanceof Element ? target : null;
         return element?.closest("[data-real-comment]") ?? null;
       },
+      getCommentHighlightAnchor: (element) => element,
       extractComment: (element) => element === comment ? source : null,
       getVideoCoverUrl: () => source.videoCoverUrl,
     };

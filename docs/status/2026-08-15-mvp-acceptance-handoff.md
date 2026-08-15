@@ -2,9 +2,9 @@
 
 ## 结论状态
 
-- 自动化验证：`PASS`，本次修复后的完整日志见下表。
-- 真实 Bilibili/Chrome MCP：`BLOCKED`；父控制器已完成 DOM 侦测，但当时 Chrome 未加载 unpacked extension，未执行扩展功能流程。
-- 发布判定：自动化基线通过；在真实 Bilibili 扩展流程仍为 `BLOCKED` 时，不可宣称已通过实机验收。
+- 自动化验证：`PASS`，当前为 107/107 单元与集成测试、4/4 E2E；日志已纳入 `docs/logs/task-10/`。
+- 真实 Bilibili 人工验证：入口、顶层评论选择、卡片生成及本地保存为 `PASS`。原构建的选中特效为 `FAIL`；修复构建待人工复测。新版嵌套回复为 `NOT RUN`。
+- 发布判定：核心链路可用，但选中特效和新版嵌套回复尚未完成真实页面复测，不宣称完整实机验收通过。
 
 ## 范围与证据规则
 
@@ -17,10 +17,10 @@
 
 | 项目 | 命令/检查 | 结果 | 日志/备注 |
 | --- | --- | --- | --- |
-| 单元与集成测试 | `npm test -- --run` | `PASS`（103/103） | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终单元集成审查后_执行命令说明_20260815_131532.log` |
-| TypeScript | `npx tsc --noEmit` | `PASS` | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终TypeScript审查后_执行命令说明_20260815_131545.log` |
-| 生产构建 | `npm run build` | `PASS` | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终生产构建审查后_执行命令说明_20260815_131558.log` |
-| E2E fixture | `npm run test:e2e` | `PASS`（3/3） | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终完整E2E审查后_执行命令说明_20260815_131610.log`；本机 fixture，非真实 Bilibili |
+| 单元与集成测试 | `npm test -- --run` | `PASS`（107/107） | `docs/logs/task-10/npm_test_执行命令说明_20260815_133810.log` |
+| TypeScript | `npx tsc --noEmit` | `PASS` | 初次检查发现测试替身缺少新接口并记录于 `docs/logs/task-10/tsc_执行命令说明_20260815_133826.log`；补齐后复检 exit 0 |
+| 生产构建 | `npm run build` | `PASS` | `docs/logs/task-10/build_执行命令说明_20260815_133826.log` |
+| E2E fixture | `npm run test:e2e` | `PASS`（4/4） | `docs/logs/task-10/e2e_执行命令说明_20260815_133907.log`；覆盖生产视觉层和现代嵌套 open Shadow DOM fixture，仍非真实 Bilibili |
 | 生产 manifest | 精确 Bilibili match、仅 storage/downloads、无 host_permissions | `PASS` | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终生产Manifest审查后_执行命令说明_20260815_131655.log` |
 | Git 格式检查 | `git diff --check` | `PASS` | `.superpowers/sdd/2026-08-12-comment-card-extension-implementation/task-10-logs/最终Git差异检查_执行命令说明_20260815_130734.log`；仅有 CRLF 预警，无 diff whitespace error |
 
@@ -30,20 +30,20 @@
 | --- | --- |
 | 控制器 | 父控制器 |
 | Chrome 版本 | `Chrome/151.0.0.0`（Windows 11） |
-| unpacked extension 是否已加载 | `BLOCKED`：未加载，因而未执行扩展流程 |
+| unpacked extension 是否已加载 | `PASS`：用户完成加载；扩展 Reload 后刷新视频页才重新注入 |
 | 测试 URL 范围（脱敏） | `https://www.bilibili.com/video/BV1xx411c7mD/`（登出态；已移除 `vd_source` query；滚动至 `#commentapp` 后评论可见） |
-| 真实 Bilibili 结果 | `BLOCKED`：无加载后的扩展功能证据 |
+| 真实 Bilibili 结果 | 入口、顶层评论选择、生成及本地保存 `PASS`；原 hover 视觉 `FAIL`；修复后视觉与现代嵌套回复 `NOT RUN` |
 | fixture MCP 结果 | `NOT RUN`；即使后续执行，也不得替代真实 Bilibili 结果 |
-| 入口/评论/回复/滚动 | `BLOCKED`：扩展未加载；DOM 侦测发现旧 `.reply-item/.reply-content/.reply-time` 为 0 个，滚动后发现 20 个 `bili-comment-thread-renderer`，且首条评论的正文、作者、时间字段可经 open Shadow DOM 读取（内容已脱敏，未存储） |
+| 入口/评论/回复/滚动 | 入口和顶层评论 `PASS`；现代嵌套回复、滚动保持选择 `NOT RUN` |
 | 五种退出路径 | `NOT RUN` |
-| 合法评论 hover | `NOT RUN` |
+| 合法评论 hover | 原构建 `FAIL`；独立页面高亮层修复自动化 `PASS`，真实页面待复测 |
 | 四种样式、两种比例、封面、游戏化默认值 | `NOT RUN` |
 | 稳定属性、长文本、英文、Emoji | `NOT RUN` |
 | 封面 fallback、PNG 非空和精确尺寸 | `NOT RUN` |
 | Bilibili 原有交互、reduced motion、console | 扩展交互与 reduced motion 为 `BLOCKED`；MCP DOM 侦测期间浏览器 console 为 `PASS`（无 error/warning），不等同于扩展 console 验收 |
 | 隐私/权限及证据脱敏 | `NOT RUN` |
 | Snapshot / screenshot / console / download / operation-log 路径 | screenshot 已在 MCP 响应内可见但 `NOT SAVED`：Chrome MCP workspace-root 限制拒绝仓库/worktree 路径；其余扩展流程证据为 `BLOCKED` |
-| 阻塞因素 | Chrome profile 的 `extensionHosts: []`，未加载 unpacked production `dist`；原生文件夹选择器无法自动化 |
+| 阻塞因素 | 无加载阻塞；剩余为修复后人工视觉复测和现代嵌套回复真实页面验证 |
 
 ## 已纳入的真实 DOM 兼容性修复
 
@@ -51,7 +51,8 @@
 
 - `BilibiliAdapter` 只在自身内穿透 open Shadow DOM，并沿 composed tree 判定评论归属。
 - `SelectionController` 从 `event.composedPath()` 解析被 Shadow boundary 重定向的事件。
-- 合法评论 host 获得可恢复的内联 hover 视觉；非合法区域不获得该样式。
+- 合法评论解析到 Shadow DOM 内可见的 `#body` 锚点；页面顶层独立高亮层绘制渐变流光和 12px 内弱水雾，并随滚动、缩放更新位置。
+- `prefers-reduced-motion: reduce` 下关闭高亮层循环动画；退出选择、移出评论或销毁时移除视觉层。
 - 先后保留 RED 日志与 GREEN 回归：`RED真实ShadowDOM适配器回归_执行命令说明_20260815_130205.log`、`RED事件重定向回归_执行命令说明_20260815_130217.log`、`RED生产hover视觉回归_执行命令说明_20260815_130244.log`、`GREEN真实ShadowDOM最终回归_执行命令说明_20260815_130454.log`、`GREEN类型与ShadowDOM回归_执行命令说明_20260815_130617.log`。
 
 ## 发布前复核

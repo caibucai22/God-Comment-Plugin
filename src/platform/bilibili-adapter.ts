@@ -92,6 +92,10 @@ export class BilibiliAdapter implements PlatformAdapter {
     return comment && root && isWithinComposedTree(comment, root) ? comment : null;
   }
 
+  getCommentHighlightAnchor(element: Element): Element {
+    return findFirstAcrossOpenShadowRoots(element, ["#body"]) ?? element;
+  }
+
   extractComment(element: Element): CommentCardSource | null {
     const content = getNormalizedText(element, SELECTORS.content);
     if (!content) return null;
