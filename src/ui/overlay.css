@@ -16,3 +16,125 @@ button { font: inherit; } .ccg-selection-prompt button, .ccg-status button { col
 .ccg-status { display: flex; align-items: center; gap: 10px; width: max-content; max-width: 286px; margin: 8px 0 0 auto; padding: 8px 10px; border-radius: 10px; }.ccg-status--success { border-color: #76e9c0; }.ccg-status--error { border-color: #ff9eaf; }
 @keyframes ccg-flow { to { background-position: 240% 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+.ccg-extension-panel,
+.ccg-extension-panel *,
+.ccg-extension-panel *::before,
+.ccg-extension-panel *::after { box-sizing: border-box; }
+.ccg-extension-panel {
+  --ccg-pink: #f23873;
+  --ccg-pink-deep: #d91f5e;
+  --ccg-pink-soft: #ffb5ca;
+  --ccg-paper: #fffafa;
+  --ccg-ink: #21161e;
+  position: relative;
+  isolation: isolate;
+  width: 320px;
+  height: 754px;
+  overflow: hidden;
+  color: var(--ccg-ink);
+  border: 2px solid var(--ccg-pink-soft);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffdfd 0%, #fff8f9 72%, #fff4f7 100%);
+  box-shadow: 0 10px 28px rgba(170, 52, 91, .16), inset 0 0 0 1px rgba(255, 255, 255, .9);
+  font: 14px/1.55 "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+.ccg-extension-panel::before,
+.ccg-extension-panel::after {
+  position: absolute;
+  z-index: 5;
+  width: 18px;
+  height: 6px;
+  content: "";
+  background: var(--ccg-pink);
+  box-shadow: 4px 4px 0 #fff, 8px 4px 0 var(--ccg-pink);
+  pointer-events: none;
+}
+.ccg-extension-panel::before { top: -2px; left: 14px; }
+.ccg-extension-panel::after { right: 18px; bottom: -2px; transform: rotate(180deg); }
+.ccg-panel-header {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 38px 1fr 36px;
+  gap: 10px;
+  align-items: center;
+  height: 68px;
+  padding: 0 18px 0 20px;
+  border-bottom: 1px solid rgba(242, 56, 115, .08);
+}
+.ccg-panel-header strong { font-size: 19px; font-weight: 800; letter-spacing: .01em; }
+.ccg-panel-logo { width: 38px; height: 38px; }
+.ccg-panel-close {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #fff;
+  border: 2px solid #24202a;
+  border-radius: 2px;
+  background: var(--ccg-pink);
+  box-shadow: inset -3px -3px 0 var(--ccg-pink-deep), inset 3px 3px 0 #ff7aa4;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 24px;
+  cursor: pointer;
+}
+.ccg-stepper {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(5, 40px);
+  justify-content: space-between;
+  align-items: center;
+  height: 58px;
+  margin: 0;
+  padding: 0 20px;
+  list-style: none;
+}
+.ccg-stepper::before {
+  position: absolute;
+  right: 37px;
+  left: 37px;
+  height: 2px;
+  content: "";
+  background: #f4c8d4;
+}
+.ccg-stepper li { position: relative; display: grid; place-items: center; width: 40px; height: 40px; }
+.ccg-stepper li span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: #4d2836;
+  border: 2px solid #f3c3d1;
+  background: var(--ccg-paper);
+  clip-path: polygon(20% 0, 80% 0, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0 80%, 0 20%);
+  font-size: 16px;
+  font-weight: 800;
+}
+.ccg-stepper [aria-current="step"] span,
+.ccg-stepper [data-complete="true"] span { color: #fff; border-color: var(--ccg-pink-deep); background: var(--ccg-pink); }
+.ccg-state-viewport {
+  position: relative;
+  z-index: 2;
+  height: 500px;
+  margin: 0 14px;
+  overflow: auto;
+  border: 1px solid #f6cbd7;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .56);
+}
+.ccg-state-content { min-height: 100%; padding: 16px; }
+.ccg-state-content h2 { margin: 0 0 14px; font-size: 18px; line-height: 1.35; }
+.ccg-state-content:not(.ccg-state-content--editing) { display: flex; flex-direction: column; align-items: center; padding-top: 42px; text-align: center; }
+.ccg-state-illustration { width: 124px; height: 116px; margin-bottom: 18px; }
+.ccg-source-comment { margin: 0; padding: 14px; border: 1px solid #f5aac0; background: #fff; font-weight: 600; line-height: 1.75; }
+.ccg-bottom-decoration {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 128px;
+  pointer-events: none;
+}

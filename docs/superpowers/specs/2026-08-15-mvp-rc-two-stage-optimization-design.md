@@ -626,3 +626,69 @@ VISUAL_DENSITY: 6
 - 本轮只提交 Spec，不修改 `src/`、测试、构建配置或依赖。
 - `design-taste-frontend` 影响了面板的信息层级、视觉令牌、状态原位替换、动效动机和可访问性约束。
 - 后续实施前仍需按 TDD 拆分任务，并以真实 B站页面和 Chrome 扩展构建验证。
+
+## 19. Pixel-Perfect 单 Panel 修订（2026-08-24）
+
+本节覆盖第 17 节的暗色工具面板视觉方案，以及第 7 节仅含四状态的模型。参考图是同一浏览器插件 Panel 的五种状态并排展示稿，不是产品运行时的五列页面。运行时任一时刻只显示一个固定尺寸 Panel。
+
+### 19.1 状态模型与迁移
+
+```ts
+type PanelState = "editing" | "generating" | "failed" | "generated" | "saved";
+```
+
+正常路径：`editing → generating → generated → saved`。异常路径：`generating → failed`；失败后“重新生成”回到 `generating`，“返回修改”回到 `editing`；保存完成后“再做一张”回到 `editing`。状态变化只替换中间内容和动作，不重新创建 Panel Shell。
+
+### 19.2 共享外壳
+
+唯一的 `PanelShell` 负责固定宽高、粉色像素边框、圆角、背景、阴影、裁切和定位。五种状态共享：
+
+- `PanelHeader`：Logo、产品名、关闭按钮；继续遵循已确认要求，不显示 Beta 标识。
+- `StepIndicator`：5 个步骤、连接线、激活与完成状态。
+- `StateViewport`：状态内容唯一可替换区域；内容过高时只在内部滚动。
+- `BottomDecoration`：绝对定位在 Panel 底部，不参与内容流，不改变 Panel 高度。
+
+Panel 是悬浮在 B站网页右侧的浏览器扩展 UI，不使用 `100vw`、`100vh` 或普通页面 Header/Main/Footer 布局。首轮只优化目标固定尺寸，不因响应式改变核心几何。
+
+### 19.3 参考图几何基准
+
+参考图尺寸为 `1729 × 910`，其中每个状态样稿的可见 Panel 约宽 `320px`、高 `754px`。实现目标统一为：
+
+- Panel：`320 × 754px`。
+- Header：`68px`；横向安全边距 `20px`。
+- Stepper：高 `58px`；单步约 `40px`；连接线保持等距。
+- StateViewport：位于 Header 与 Stepper 后，底部动作区和装饰层之前。
+- Panel 内容横向 padding：`14px`。
+- 主按钮高 `48–50px`，次按钮高不低于 `44px`。
+- BottomDecoration：固定高 `128px`，`position: absolute; inset-inline: 0; bottom: 0`。
+- 外边框：约 `2px` 粉色，使用伪元素或 SVG/背景层形成像素角与装饰断点，不能退化成普通一像素圆角边框。
+
+最终尺寸以浏览器截图与参考图逐状态叠加校正为准，几何优先级高于颜色、阴影和装饰微调。
+
+### 19.4 视觉语言
+
+采用参考图中的 Pixel Art / Kawaii / Cute Game UI / Pink-White / Retro Game Interface。系统中文字体明确为 `"Microsoft YaHei", "PingFang SC", sans-serif`，并通过字号、字重与行高补偿参考图比例。基础色：近白粉底、鲜粉主色、浅粉描边、深色正文、紫灰次级文本、绿色成功色；禁止 Material、Fluent、shadcn、默认 Tailwind、SaaS Dashboard 视觉。
+
+像素素材仅允许使用项目内授权资产或用户提供的参考资产。缺失时必须记录 `Missing Asset`，不得以 Emoji、Lucide、Material icon、随机网络图片或自行绘制的近似角色替代。像素素材使用整数倍缩放与 `image-rendering: pixelated`；真实生成卡片预览不应用像素化渲染。
+
+### 19.5 五状态内容
+
+- `editing`：内容设置、日期/来源摘要、评论文字编辑、样式设置、更多选项、重置、制作卡片。
+- `generating`：状态插画、制作文案、真实阶段或不伪造进度的等待表现、小贴士、取消制作。
+- `failed`：错误插画、错误说明、可能原因、重新生成、返回修改。
+- `generated`：真实导出 artifact 预览、比例、像素尺寸、返回修改、确认保存。
+- `saved`：成功插画、保存信息、文件格式、分辨率、保存位置、打开文件夹（能力不可用时明确禁用并说明）、再做一张。
+
+### 19.6 Visual QA
+
+为预览夹具增加 `?state=editing|generating|failed|generated|saved`，页面只渲染一个 Panel。每个状态单独以目标 Panel viewport 截图，与参考图对应状态比较。至少执行三轮：
+
+1. P0 Geometry：宽高、Header、Stepper、内容区、按钮、预览、底部装饰。
+2. P1/P2：padding、gap、字号、字重、行高、换行。
+3. P3/P4：颜色、边框、圆角、阴影、素材尺寸、像素清晰度。
+
+每轮记录影响最大的视觉差异并按优先级修复。没有逐状态截图证据，不得声明 Pixel-Perfect 完成。
+
+### 19.7 已知素材缺口
+
+主线当前只有 `src/assets/bilibili-mark.svg`。以下参考图素材缺失：产品电视 Logo、关闭图标、分组图标、Loading/错误/成功状态插画、猫/狗/电视角色、樱花树、草地、爱心、星星、底部装饰变体和像素按钮图标。首轮实现可完成共享几何、状态行为和 CSS 像素边框，但这些素材位置必须保留显式 `data-missing-asset` 标记；素材未补齐前，最终验收应报告为视觉资产阻塞，而不是用替代品伪装完成。

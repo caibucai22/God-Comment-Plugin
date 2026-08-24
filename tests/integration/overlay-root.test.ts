@@ -78,6 +78,21 @@ describe("OverlayRoot", () => {
     expect((overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("mounts confirmation inside the single shared extension panel shell", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+
+    overlay.showConfirm(
+      { platform: "bilibili", content: "共享外壳测试" },
+      { style: "warm", ratio: "3:4", includeCover: false, gameDecoration: false },
+    );
+
+    expect(overlay.shadowRoot!.querySelectorAll(".ccg-extension-panel")).toHaveLength(1);
+    expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
+    expect(overlay.shadowRoot!.querySelector(".ccg-extension-panel .ccg-confirm")).not.toBeNull();
+    expect(overlay.shadowRoot!.textContent).not.toContain("BETA");
+  });
+
   it("renders a retry action and distinguishes retry from dismissing the retained download", () => {
     const overlay = createOverlay();
     const events: string[] = [];
