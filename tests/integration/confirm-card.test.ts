@@ -12,7 +12,7 @@ const source: CommentCardSource = {
 
 const preferences: CardPreferences = {
   style: "history",
-  ratio: "9:16",
+  ratio: "16:9",
   includeCover: true,
   gameDecoration: false,
 };
@@ -33,15 +33,15 @@ describe("OverlayRoot confirmation card", () => {
     return overlay;
   }
 
-  it("renders the read-only preview and all four style controls with Chinese labels", () => {
+  it("renders an editable comment and all five card styles in the shared panel", () => {
     const overlay = openConfirm();
     const root = overlay.shadowRoot!;
 
-    expect(root.textContent).toContain(source.content);
-    expect(root.querySelectorAll('input[name="ccg-style"]')).toHaveLength(4);
+    expect((root.querySelector('[aria-label="评论文字"]') as HTMLTextAreaElement).value).toBe(source.content);
+    expect(root.querySelectorAll('input[name="ccg-style"]')).toHaveLength(5);
     expect(root.querySelectorAll('input[name="ccg-ratio"]')).toHaveLength(2);
-    expect(root.querySelector('[aria-label="取消生成"]')).not.toBeNull();
-    expect(root.querySelector('[aria-label="生成卡片"]')).not.toBeNull();
+    expect(root.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
+    expect(root.querySelector('[aria-label="制作卡片"]')).not.toBeNull();
     expect(root.querySelector('[aria-label="包含视频封面"]')).not.toBeNull();
     expect(root.querySelector('[aria-label="添加游戏化装饰"]')).not.toBeNull();
   });
@@ -58,11 +58,18 @@ describe("OverlayRoot confirmation card", () => {
     (root.querySelector('input[value="3:4"]') as HTMLInputElement).click();
     (root.querySelector('[aria-label="包含视频封面"]') as HTMLInputElement).click();
     (root.querySelector('[aria-label="添加游戏化装饰"]') as HTMLInputElement).click();
-    (root.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).click();
+    (root.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
 
     expect(detail).toEqual({
       source,
-      options: { style: "sss", ratio: "3:4", includeCover: false, gameDecoration: true },
+      options: {
+        style: "sss",
+        ratio: "3:4",
+        includeCover: false,
+        includeAttributes: false,
+        gameDecoration: true,
+        soundEnabled: false,
+      },
     });
   });
 
@@ -74,7 +81,7 @@ describe("OverlayRoot confirmation card", () => {
         (event as CustomEvent<{ source: CommentCardSource; options: GenerateOptions }>).detail.options,
       );
     });
-    const generate = overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement;
+    const generate = overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement;
 
     overlay.destroy();
 
@@ -86,7 +93,7 @@ describe("OverlayRoot confirmation card", () => {
     const overlay = openConfirm();
     let cancelled = false;
     overlay.addEventListener("cancel-generate", () => (cancelled = true));
-    const cancel = overlay.shadowRoot!.querySelector('[aria-label="取消生成"]') as HTMLButtonElement;
+    const cancel = overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement;
 
     overlay.destroy();
 
@@ -107,10 +114,10 @@ describe("OverlayRoot confirmation card", () => {
     let cancelled = false;
     overlay.addEventListener("cancel-generate", () => (cancelled = true));
 
-    (overlay.shadowRoot!.querySelector('[aria-label="取消生成"]') as HTMLButtonElement).click();
+    (overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).click();
 
     expect(cancelled).toBe(true);
-    expect(overlay.shadowRoot!.querySelector(".ccg-confirm")).toBeNull();
+    expect(overlay.shadowRoot!.querySelector(".ccg-extension-panel")).toBeNull();
   });
 
   it("replaces and dismisses transient-ready status cards without timers", () => {

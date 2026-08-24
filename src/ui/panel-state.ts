@@ -6,6 +6,7 @@ export interface PanelViewModel {
   readonly state: PanelState;
   readonly source: CommentCardSource;
   readonly preferences: CardPreferences;
+  readonly draftContent?: string;
   readonly errorMessage?: string;
   readonly previewUrl?: string;
   readonly progress?: number;

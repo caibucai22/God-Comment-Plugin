@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createExtensionPanel } from "../../src/ui/extension-panel";
 import type { PanelState, PanelViewModel } from "../../src/ui/panel-state";
 
@@ -36,5 +36,45 @@ describe("ExtensionPanel shared shell", () => {
       const panel = createExtensionPanel(document, model(state), {});
       expect(panel.querySelectorAll('.ccg-stepper [aria-current="step"]')).toHaveLength(1);
     }
+  });
+
+  it("renders the reference editing controls in three accordion sections", () => {
+    const panel = createExtensionPanel(document, model("editing"), {});
+
+    expect(panel.querySelectorAll("[data-accordion-trigger]")).toHaveLength(3);
+    expect(panel.querySelector('[data-accordion-trigger="content"]')?.getAttribute("aria-expanded")).toBe("true");
+    expect(panel.querySelectorAll('input[name="ccg-style"]')).toHaveLength(5);
+    expect(panel.querySelector('input[name="ccg-style"][value="bilibili"]')).not.toBeNull();
+    expect(panel.querySelector('input[name="ccg-ratio"][value="16:9"]')).not.toBeNull();
+    expect((panel.querySelector('[aria-label="显示趣味属性"]') as HTMLInputElement).checked).toBe(false);
+    expect(panel.querySelector('input[name="ccg-panel-skin"][value="pixel"]')).not.toBeNull();
+  });
+
+  it("edits, restores, validates, and emits a trimmed comment", () => {
+    const onGenerate = vi.fn();
+    const onDraftChange = vi.fn();
+    const onRestoreOriginal = vi.fn();
+    const panel = createExtensionPanel(document, model("editing"), {
+      onGenerate,
+      onDraftChange,
+      onRestoreOriginal,
+    });
+    document.body.append(panel);
+    const textarea = panel.querySelector('[aria-label="评论文字"]') as HTMLTextAreaElement;
+
+    textarea.value = " 修改后的评论 ";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(onDraftChange).toHaveBeenCalledWith(" 修改后的评论 ");
+    (panel.querySelector('[aria-label="恢复原文"]') as HTMLButtonElement).click();
+    expect(onRestoreOriginal).toHaveBeenCalledOnce();
+
+    textarea.value = "   ";
+    (panel.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    expect(onGenerate).not.toHaveBeenCalled();
+    expect(panel.textContent).toContain("评论文字不能为空");
+
+    textarea.value = "  可生成正文  ";
+    (panel.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    expect(onGenerate).toHaveBeenCalledWith(expect.objectContaining({ content: "可生成正文" }), expect.any(Object));
   });
 });

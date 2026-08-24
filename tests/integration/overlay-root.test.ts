@@ -72,10 +72,10 @@ describe("OverlayRoot", () => {
     );
 
     overlay.setGenerationBusy(true);
-    expect((overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).disabled).toBe(true);
 
     overlay.setGenerationBusy(false);
-    expect((overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled).toBe(false);
+    expect((overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("mounts confirmation inside the single shared extension panel shell", () => {
@@ -89,7 +89,7 @@ describe("OverlayRoot", () => {
 
     expect(overlay.shadowRoot!.querySelectorAll(".ccg-extension-panel")).toHaveLength(1);
     expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
-    expect(overlay.shadowRoot!.querySelector(".ccg-extension-panel .ccg-confirm")).not.toBeNull();
+    expect(overlay.shadowRoot!.querySelector(".ccg-extension-panel .ccg-state-content--editing")).not.toBeNull();
     expect(overlay.shadowRoot!.textContent).not.toContain("BETA");
   });
 

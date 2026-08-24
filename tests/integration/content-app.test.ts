@@ -302,12 +302,12 @@ describe("content application composition", () => {
     const harness = await makeRealDomHarness();
     (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
     harness.comment.click();
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
 
-    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]') as HTMLButtonElement).click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).click();
 
     expect(harness.controller.active).toBe(true);
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).toBeNull();
   });
 
   it("does not consume a context menu opened inside the real overlay", async () => {
@@ -330,30 +330,30 @@ describe("content application composition", () => {
     (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
     harness.comment.click();
     const retainedCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="取消生成"]',
+      '[aria-label="关闭制作面板"]',
     ) as HTMLButtonElement;
 
-    (harness.overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
     const renderingCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="取消生成"]',
+      '[aria-label="关闭制作面板"]',
     ) as HTMLButtonElement;
     expect(renderingCancel.disabled).toBe(true);
 
     retainedCancel.click();
     harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
     expect(harness.controller.active).toBe(true);
 
     rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
     await vi.waitFor(() => expect(exportPng).toHaveBeenCalledOnce());
     const exportingCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="取消生成"]',
+      '[aria-label="关闭制作面板"]',
     ) as HTMLButtonElement;
     expect(exportingCancel.disabled).toBe(true);
 
     exportingCancel.click();
     harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
     expect(harness.controller.active).toBe(true);
 
     exporting.resolve();

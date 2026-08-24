@@ -1,5 +1,4 @@
 import type { CardPreferences, CommentCardSource, GenerateOptions } from "../domain/types";
-import { createConfirmCard } from "./confirm-card";
 import { createExtensionPanel } from "./extension-panel";
 import overlayCss from "./overlay.css?inline";
 
@@ -16,7 +15,7 @@ export class OverlayRoot extends EventTarget {
   private host: HTMLElement | null = null;
   private root: ShadowRoot | null = null;
   private active = false;
-  private confirmation: { source: CommentCardSource; preferences: CardPreferences } | null = null;
+  private confirmation: { source: CommentCardSource; preferences: CardPreferences; originalContent: string } | null = null;
   private status: Status | null = null;
   private generationBusy = false;
   private destroyed = false;
@@ -47,7 +46,7 @@ export class OverlayRoot extends EventTarget {
 
   showConfirm(source: CommentCardSource, preferences: CardPreferences): void {
     if (this.destroyed) return;
-    this.confirmation = { source, preferences };
+    this.confirmation = { source, preferences, originalContent: source.content };
     this.render();
   }
 
@@ -105,12 +104,14 @@ export class OverlayRoot extends EventTarget {
     });
 
     if (!this.confirmation) return;
+    const confirmation = this.confirmation;
     const shell = createExtensionPanel(
       this.document,
       {
         state: "editing",
-        source: this.confirmation.source,
-        preferences: this.confirmation.preferences,
+        source: confirmation.source,
+        preferences: confirmation.preferences,
+        draftContent: confirmation.source.content,
       },
       {
         onClose: () => {
@@ -119,25 +120,31 @@ export class OverlayRoot extends EventTarget {
           this.render();
           this.emit("cancel-generate");
         },
+        onDraftChange: (content) => {
+          if (!this.confirmation || this.destroyed) return;
+          this.confirmation.source = { ...this.confirmation.source, content };
+        },
+        onRestoreOriginal: () => {
+          if (!this.confirmation || this.destroyed) return;
+          this.confirmation.source = {
+            ...this.confirmation.source,
+            content: this.confirmation.originalContent,
+          };
+          this.render();
+        },
+        onPanelSkinChange: (panelSkin) => {
+          if (!this.confirmation || this.destroyed) return;
+          this.confirmation.preferences = { ...this.confirmation.preferences, panelSkin };
+        },
+        onGenerate: (source, options) => {
+          if (this.destroyed || !this.confirmation || this.generationBusy) return;
+          this.emit("confirm-generate", { source, options });
+        },
       },
     );
-    const card = createConfirmCard(this.document, this.confirmation.source, this.confirmation.preferences, {
-      onCancel: () => {
-        if (this.destroyed || this.generationBusy) return;
-        this.confirmation = null;
-        this.render();
-        this.emit("cancel-generate");
-      },
-      onGenerate: (options) => {
-        if (this.destroyed || !this.confirmation || this.generationBusy) return;
-        this.emit("confirm-generate", { source: this.confirmation.source, options });
-      },
-    });
-    const viewport = shell.querySelector(".ccg-state-viewport")!;
-    viewport.replaceChildren(card);
     this.root.querySelector(".ccg-panel-slot")!.append(shell);
-    (card.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled = this.generationBusy;
-    (card.querySelector('[aria-label="取消生成"]') as HTMLButtonElement).disabled = this.generationBusy;
+    (shell.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).disabled = this.generationBusy;
+    (shell.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).disabled = this.generationBusy;
   }
 
   private emit(

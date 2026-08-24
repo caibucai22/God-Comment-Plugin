@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPreferences, savePreferences } from "../../src/storage/preferences";
 
 const defaults = {
-  style: "warm",
+  style: "bilibili",
   ratio: "3:4",
   includeCover: true,
   gameDecoration: false,
+  includeAttributes: false,
+  soundEnabled: false,
+  panelSkin: "pixel",
 } as const;
 
 afterEach(() => {
@@ -13,6 +16,25 @@ afterEach(() => {
 });
 
 describe("preferences", () => {
+  it("defaults to the bilibili card style, pixel panel skin, 3:4, and disabled optional decoration", async () => {
+    delete (globalThis as { chrome?: unknown }).chrome;
+
+    await expect(loadPreferences()).resolves.toEqual(expect.objectContaining({
+      style: "bilibili",
+      ratio: "3:4",
+      gameDecoration: false,
+      includeAttributes: false,
+      panelSkin: "pixel",
+    }));
+  });
+
+  it("migrates the retired vertical 9:16 ratio to 3:4", async () => {
+    (globalThis as { chrome?: unknown }).chrome = {
+      storage: { sync: { get: async () => ({ ratio: "9:16" }) } },
+    };
+
+    await expect(loadPreferences()).resolves.toEqual(expect.objectContaining({ ratio: "3:4" }));
+  });
   it("returns the exact defaults when Chrome storage is unavailable", async () => {
     await expect(loadPreferences()).resolves.toEqual(defaults);
   });
@@ -37,6 +59,9 @@ describe("preferences", () => {
       ratio: "3:4",
       includeCover: true,
       gameDecoration: true,
+      includeAttributes: false,
+      soundEnabled: false,
+      panelSkin: "pixel",
     });
   });
 
@@ -47,7 +72,7 @@ describe("preferences", () => {
         sync: {
           get: vi.fn().mockResolvedValue({
             style: "history",
-            ratio: "9:16",
+            ratio: "16:9",
             includeCover: false,
             gameDecoration: false,
             foreign: "do not preserve",
@@ -59,15 +84,21 @@ describe("preferences", () => {
 
     await expect(savePreferences({ gameDecoration: true })).resolves.toEqual({
       style: "history",
-      ratio: "9:16",
+      ratio: "16:9",
       includeCover: false,
       gameDecoration: true,
+      includeAttributes: false,
+      soundEnabled: false,
+      panelSkin: "pixel",
     });
     expect(set).toHaveBeenCalledWith({
       style: "history",
-      ratio: "9:16",
+      ratio: "16:9",
       includeCover: false,
       gameDecoration: true,
+      includeAttributes: false,
+      soundEnabled: false,
+      panelSkin: "pixel",
     });
   });
 
