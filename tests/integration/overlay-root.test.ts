@@ -63,7 +63,7 @@ describe("OverlayRoot", () => {
     expect(exits).toEqual([]);
   });
 
-  it("disables generation while busy and restores it after the operation settles", () => {
+  it("replaces editing with the generating state while busy", () => {
     const overlay = createOverlay();
     overlay.mount();
     overlay.showConfirm(
@@ -72,10 +72,12 @@ describe("OverlayRoot", () => {
     );
 
     overlay.setGenerationBusy(true);
-    expect((overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generating"]')).not.toBeNull();
+    expect(overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]')).toBeNull();
+    expect(overlay.shadowRoot!.querySelector('[aria-label="取消制作"]')).not.toBeNull();
 
     overlay.setGenerationBusy(false);
-    expect((overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).disabled).toBe(false);
+    expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generating"]')).not.toBeNull();
   });
 
   it("mounts confirmation inside the single shared extension panel shell", () => {

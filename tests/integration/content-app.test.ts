@@ -322,43 +322,33 @@ describe("content application composition", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it("keeps current, retained, and programmatic cancel inert while real generation is busy", async () => {
+  it("waits at generated preview and downloads only after confirmation", async () => {
     const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
     const exporting = deferred<void>();
     const exportPng = vi.fn(() => exporting.promise);
     const harness = await makeRealDomHarness({ renderCard: () => rendering.promise, exportPng });
     (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
     harness.comment.click();
-    const retainedCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="关闭制作面板"]',
-    ) as HTMLButtonElement;
-
     (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
     const renderingCancel = harness.overlay.shadowRoot!.querySelector(
       '[aria-label="关闭制作面板"]',
     ) as HTMLButtonElement;
     expect(renderingCancel.disabled).toBe(true);
 
-    retainedCancel.click();
-    harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
-    expect(harness.controller.active).toBe(true);
-
     rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
-    await vi.waitFor(() => expect(exportPng).toHaveBeenCalledOnce());
-    const exportingCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="关闭制作面板"]',
-    ) as HTMLButtonElement;
-    expect(exportingCancel.disabled).toBe(true);
-
-    exportingCancel.click();
-    harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
+    });
+    expect(exportPng).not.toHaveBeenCalled();
     expect(harness.controller.active).toBe(true);
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(exportPng).toHaveBeenCalledOnce());
 
     exporting.resolve();
     await settle();
     expect(exportPng).toHaveBeenCalledOnce();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]')).not.toBeNull();
     expect(harness.controller.active).toBe(false);
     expect(harness.states.at(-1)?.reason).toBe("toggle");
   });
@@ -377,7 +367,7 @@ describe("content application composition", () => {
     expect(harness.overlay.selectionStates.at(-1)).toBe(true);
   });
 
-  it("saves exactly four preferences then generates attributes, renders, exports, completes, and exits", async () => {
+  it("saves production preferences then generates, renders, exports, completes, and exits", async () => {
     const order: string[] = [];
     const saved: CardPreferences[] = [];
     const renderInputs: unknown[] = [];
@@ -407,9 +397,17 @@ describe("content application composition", () => {
     await settle();
 
     expect(order).toEqual(["save", "attributes", "render", "export"]);
-    expect(saved).toEqual([{ ...generatedOptions }]);
-    expect(Object.keys(saved[0]).sort()).toEqual(["gameDecoration", "includeCover", "ratio", "style"]);
-    expect(renderInputs).toEqual([{ source, options: generatedOptions, attributes }]);
+    const exactOptions = { ...generatedOptions, includeAttributes: false, soundEnabled: false };
+    expect(saved).toEqual([exactOptions]);
+    expect(Object.keys(saved[0]).sort()).toEqual([
+      "gameDecoration",
+      "includeAttributes",
+      "includeCover",
+      "ratio",
+      "soundEnabled",
+      "style",
+    ]);
+    expect(renderInputs).toEqual([{ source, options: exactOptions, attributes }]);
     expect(exportInputs).toEqual([{
       canvas: harness.canvas,
       filename: "神评卡片-bilibili-20260815-123456.png",

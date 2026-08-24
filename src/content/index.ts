@@ -41,6 +41,9 @@ export interface ContentOverlay {
   showStatus(kind: StatusKind, message: string): void;
   showDownloadRetry(message: string): void;
   setGenerationBusy(busy: boolean): void;
+  showGenerated?(previewUrl?: string): void;
+  showFailed?(message: string): void;
+  showSaved?(dimensions: string): void;
 }
 
 export interface ContentSelectionController {
@@ -106,6 +109,10 @@ export async function createContentApp(
   let generating = false;
   let retainedDownload: RetainedPngDownload | null = null;
   let retainedSuccessMessage = "卡片已保存";
+  let pendingRendered: RenderCardResult | null = null;
+  let pendingFilename: string | null = null;
+  let lastGenerateDetail: GenerateDetail | null = null;
+  let generationVersion = 0;
 
   const controller = dependencies.createSelectionController({
     adapter,
@@ -140,6 +147,10 @@ export async function createContentApp(
   const handleGenerate = async ({ source, options }: GenerateDetail): Promise<void> => {
     if (destroyed || generating) return;
     generating = true;
+    const operationVersion = ++generationVersion;
+    lastGenerateDetail = { source, options };
+    pendingRendered = null;
+    pendingFilename = null;
     overlay.setGenerationBusy(true);
     if (releaseRetained()) overlay.showStatus("info", "正在生成卡片");
 
@@ -155,48 +166,61 @@ export async function createContentApp(
         ratio: options.ratio,
         includeCover: options.includeCover,
         gameDecoration: options.gameDecoration,
+        includeAttributes: options.includeAttributes ?? false,
+        soundEnabled: options.soundEnabled ?? false,
       };
 
       let rendered: RenderCardResult;
       try {
         await dependencies.savePreferences(exactPreferences);
-        if (destroyed) return;
+        if (destroyed || operationVersion !== generationVersion) return;
         preferences = exactPreferences;
         const generatedAttributes = dependencies.generateAttributes(source.content, options.style);
         rendered = await dependencies.renderCard({ source, options: exactPreferences, attributes: generatedAttributes });
         if (destroyed) return;
       } catch {
         if (!destroyed) {
-          overlay.showStatus("error", "卡片生成失败，请重新选择或重试");
+          if (overlay.showFailed) overlay.showFailed("卡片生成失败，请重新选择或重试");
+          else overlay.showStatus("error", "卡片生成失败，请重新选择或重试");
           ensureSelectionActive();
         }
         return;
       }
 
-      const successMessage = completionMessage(rendered.coverFallbackUsed);
-      try {
-        await dependencies.exportPng(rendered.canvas, dependencies.createFilename());
-      } catch (error) {
-        if (error instanceof PngDownloadError) {
-          if (destroyed) {
-            error.retained.release();
-          } else {
-            retainedDownload = error.retained;
-            retainedSuccessMessage = successMessage;
-            overlay.showDownloadRetry("下载失败，请再次下载");
-            ensureSelectionActive();
-          }
-        } else if (!destroyed) {
-          overlay.showStatus("error", "下载失败，请重新生成");
-          ensureSelectionActive();
-        }
-        return;
-      }
-
-      complete(successMessage);
+      pendingRendered = rendered;
+      pendingFilename = dependencies.createFilename();
+      retainedSuccessMessage = completionMessage(rendered.coverFallbackUsed);
+      if (overlay.showGenerated) overlay.showGenerated();
+      else await handleConfirmSave(true);
     } finally {
       generating = false;
       if (!destroyed) overlay.setGenerationBusy(false);
+    }
+  };
+
+  const handleConfirmSave = async (fromGeneration = false): Promise<void> => {
+    if (destroyed || (!fromGeneration && generating) || !pendingRendered || !pendingFilename) return;
+    generating = true;
+    const rendered = pendingRendered;
+    const filename = pendingFilename;
+    try {
+      await dependencies.exportPng(rendered.canvas, filename);
+      if (destroyed) return;
+      pendingRendered = null;
+      pendingFilename = null;
+      const dimensions = `${rendered.canvas.width} × ${rendered.canvas.height}`;
+      if (overlay.showSaved) overlay.showSaved(dimensions);
+      else complete(retainedSuccessMessage);
+      controller.exit("toggle");
+    } catch (error) {
+      if (error instanceof PngDownloadError) {
+        retainedDownload = error.retained;
+        overlay.showDownloadRetry("下载失败，请再次下载");
+      } else {
+        overlay.showStatus("error", "下载失败，请重新保存");
+      }
+    } finally {
+      generating = false;
     }
   };
 
@@ -246,6 +270,23 @@ export async function createContentApp(
   };
   const onRetryDownload: EventListener = () => { void handleRetry(); };
   const onCancelDownload: EventListener = () => { releaseRetained(); };
+  const onCancelGeneration: EventListener = () => {
+    if (destroyed) return;
+    generationVersion += 1;
+    generating = false;
+    pendingRendered = null;
+    pendingFilename = null;
+    overlay.setGenerationBusy(false);
+  };
+  const onRetryGeneration: EventListener = () => {
+    if (!destroyed && !generating && lastGenerateDetail) void handleGenerate(lastGenerateDetail);
+  };
+  const onConfirmSave: EventListener = () => { void handleConfirmSave(); };
+  const onReturnEditing: EventListener = () => {
+    pendingRendered = null;
+    pendingFilename = null;
+  };
+  const onCreateAnother: EventListener = () => { ensureSelectionActive(); };
 
   const listeners: ReadonlyArray<[string, EventListener]> = [
     ["toggle-selection", onToggleSelection],
@@ -254,6 +295,11 @@ export async function createContentApp(
     ["confirm-generate", onConfirmGenerate],
     ["retry-download", onRetryDownload],
     ["cancel-download", onCancelDownload],
+    ["cancel-generation", onCancelGeneration],
+    ["retry-generation", onRetryGeneration],
+    ["return-editing", onReturnEditing],
+    ["confirm-save", onConfirmSave],
+    ["create-another", onCreateAnother],
   ];
   listeners.forEach(([type, listener]) => overlay.addEventListener(type, listener));
   overlay.setSelectionActive(false);

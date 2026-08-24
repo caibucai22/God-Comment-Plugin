@@ -8,6 +8,11 @@ export interface ExtensionPanelHandlers {
   readonly onRestoreOriginal?: () => void;
   readonly onGenerate?: (source: CommentCardSource, options: GenerateOptions) => void;
   readonly onPanelSkinChange?: (skin: PanelSkin) => void;
+  readonly onCancelGeneration?: () => void;
+  readonly onRetryGeneration?: () => void;
+  readonly onReturnEditing?: () => void;
+  readonly onConfirmSave?: () => void;
+  readonly onCreateAnother?: () => void;
 }
 
 const stateLabels: Readonly<Record<PanelState, string>> = {
@@ -223,6 +228,48 @@ function appendStateContent(document: Document, viewport: HTMLElement, model: Pa
       message.textContent = model.errorMessage ?? "卡片生成过程中出现错误";
       content.append(message);
     }
+    const actions = document.createElement("footer");
+    actions.className = "ccg-panel-actions ccg-panel-actions--state";
+    if (model.state === "generating") {
+      const cancel = button(document, "取消制作", "取消制作");
+      cancel.addEventListener("click", () => handlers.onCancelGeneration?.());
+      actions.append(cancel);
+    } else if (model.state === "failed") {
+      const back = button(document, "返回修改", "返回修改");
+      const retry = button(document, "重新生成", "重新生成");
+      back.addEventListener("click", () => handlers.onReturnEditing?.());
+      retry.addEventListener("click", () => handlers.onRetryGeneration?.());
+      actions.append(back, retry);
+    } else if (model.state === "generated") {
+      if (model.previewUrl) {
+        const preview = document.createElement("img");
+        preview.className = "ccg-generated-preview";
+        preview.src = model.previewUrl;
+        preview.alt = "生成的评论卡片预览";
+        content.insertBefore(preview, heading);
+      }
+      const back = button(document, "返回修改", "返回修改");
+      const save = button(document, "确认保存", "确认保存");
+      back.addEventListener("click", () => handlers.onReturnEditing?.());
+      save.addEventListener("click", () => handlers.onConfirmSave?.());
+      actions.append(back, save);
+    } else if (model.state === "saved") {
+      const info = document.createElement("dl");
+      info.className = "ccg-save-info";
+      const values = model.saveInfo ?? { format: "PNG" as const, dimensions: "1200 × 1600", location: "本地下载" };
+      for (const [label, value] of [["文件格式", values.format], ["分辨率", values.dimensions], ["保存位置", values.location]]) {
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const detail = document.createElement("dd");
+        detail.textContent = value;
+        info.append(term, detail);
+      }
+      content.append(info);
+      const another = button(document, "再做一张", "再做一张");
+      another.addEventListener("click", () => handlers.onCreateAnother?.());
+      actions.append(another);
+    }
+    content.append(actions);
   }
   viewport.append(content);
 }

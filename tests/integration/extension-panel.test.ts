@@ -77,4 +77,35 @@ describe("ExtensionPanel shared shell", () => {
     (panel.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
     expect(onGenerate).toHaveBeenCalledWith(expect.objectContaining({ content: "可生成正文" }), expect.any(Object));
   });
+
+  it("renders state-specific actions without changing the shared shell", () => {
+    const handlers = {
+      onCancelGeneration: vi.fn(),
+      onRetryGeneration: vi.fn(),
+      onReturnEditing: vi.fn(),
+      onConfirmSave: vi.fn(),
+      onCreateAnother: vi.fn(),
+    };
+    const generated = createExtensionPanel(document, {
+      ...model("generated"),
+      previewUrl: "data:image/png;base64,cHJldmlldw==",
+    }, handlers);
+    expect(generated.querySelector('img[alt="生成的评论卡片预览"]')).not.toBeNull();
+    (generated.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
+    expect(handlers.onConfirmSave).toHaveBeenCalledOnce();
+
+    const failed = createExtensionPanel(document, model("failed"), handlers);
+    (failed.querySelector('[aria-label="重新生成"]') as HTMLButtonElement).click();
+    (failed.querySelector('[aria-label="返回修改"]') as HTMLButtonElement).click();
+    expect(handlers.onRetryGeneration).toHaveBeenCalledOnce();
+    expect(handlers.onReturnEditing).toHaveBeenCalledOnce();
+
+    const generating = createExtensionPanel(document, model("generating"), handlers);
+    (generating.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
+    expect(handlers.onCancelGeneration).toHaveBeenCalledOnce();
+
+    const saved = createExtensionPanel(document, model("saved"), handlers);
+    (saved.querySelector('[aria-label="再做一张"]') as HTMLButtonElement).click();
+    expect(handlers.onCreateAnother).toHaveBeenCalledOnce();
+  });
 });
