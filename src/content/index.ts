@@ -7,8 +7,10 @@ import type {
 } from "../domain/types";
 import {
   PngDownloadError,
+  createExportService,
   createPngFilename,
   exportPng as defaultExportPng,
+  type PngArtifact,
   type RetainedPngDownload,
 } from "../export/export-service";
 import { resolvePlatformAdapter as defaultResolvePlatformAdapter } from "../platform/adapter-registry";
@@ -66,6 +68,8 @@ export interface ContentAppDependencies {
   readonly generateAttributes: (content: string, style: GenerateOptions["style"]) => CardAttributes;
   readonly renderCard: (input: RenderCardInput) => Promise<RenderCardResult>;
   readonly exportPng: (canvas: HTMLCanvasElement, filename: string) => Promise<void>;
+  readonly createPngArtifact?: (canvas: HTMLCanvasElement) => Promise<PngArtifact>;
+  readonly downloadPngArtifact?: (artifact: PngArtifact, filename: string) => Promise<void>;
   readonly createFilename: () => string;
 }
 
@@ -111,6 +115,7 @@ export async function createContentApp(
   let retainedSuccessMessage = "卡片已保存";
   let pendingRendered: RenderCardResult | null = null;
   let pendingFilename: string | null = null;
+  let pendingArtifact: PngArtifact | null = null;
   let lastGenerateDetail: GenerateDetail | null = null;
   let generationVersion = 0;
 
@@ -133,6 +138,11 @@ export async function createContentApp(
     return true;
   };
 
+  const releasePendingArtifact = (): void => {
+    pendingArtifact?.release();
+    pendingArtifact = null;
+  };
+
   const ensureSelectionActive = (): void => {
     if (!controller.active) controller.enter();
     else overlay.setSelectionActive(true);
@@ -149,6 +159,7 @@ export async function createContentApp(
     generating = true;
     const operationVersion = ++generationVersion;
     lastGenerateDetail = { source, options };
+    releasePendingArtifact();
     pendingRendered = null;
     pendingFilename = null;
     overlay.setGenerationBusy(true);
@@ -190,7 +201,23 @@ export async function createContentApp(
       pendingRendered = rendered;
       pendingFilename = dependencies.createFilename();
       retainedSuccessMessage = completionMessage(rendered.coverFallbackUsed);
-      if (overlay.showGenerated) overlay.showGenerated();
+      if (dependencies.createPngArtifact) {
+        try {
+          pendingArtifact = await dependencies.createPngArtifact(rendered.canvas);
+        } catch {
+          pendingRendered = null;
+          pendingFilename = null;
+          if (overlay.showFailed) overlay.showFailed("卡片生成失败，请返回修改或重试");
+          else overlay.showStatus("error", "卡片生成失败，请返回修改或重试");
+          ensureSelectionActive();
+          return;
+        }
+        if (destroyed || operationVersion !== generationVersion) {
+          releasePendingArtifact();
+          return;
+        }
+      }
+      if (overlay.showGenerated) overlay.showGenerated(pendingArtifact?.url);
       else await handleConfirmSave(true);
     } finally {
       generating = false;
@@ -204,16 +231,22 @@ export async function createContentApp(
     const rendered = pendingRendered;
     const filename = pendingFilename;
     try {
-      await dependencies.exportPng(rendered.canvas, filename);
+      if (pendingArtifact && dependencies.downloadPngArtifact) {
+        await dependencies.downloadPngArtifact(pendingArtifact, filename);
+      } else {
+        await dependencies.exportPng(rendered.canvas, filename);
+      }
       if (destroyed) return;
       pendingRendered = null;
       pendingFilename = null;
+      pendingArtifact = null;
       const dimensions = `${rendered.canvas.width} × ${rendered.canvas.height}`;
       if (overlay.showSaved) overlay.showSaved(dimensions);
       else complete(retainedSuccessMessage);
       controller.exit("toggle");
     } catch (error) {
       if (error instanceof PngDownloadError) {
+        pendingArtifact = null;
         retainedDownload = error.retained;
         overlay.showDownloadRetry("下载失败，请再次下载");
       } else {
@@ -276,6 +309,7 @@ export async function createContentApp(
     generating = false;
     pendingRendered = null;
     pendingFilename = null;
+    releasePendingArtifact();
     overlay.setGenerationBusy(false);
   };
   const onRetryGeneration: EventListener = () => {
@@ -285,6 +319,7 @@ export async function createContentApp(
   const onReturnEditing: EventListener = () => {
     pendingRendered = null;
     pendingFilename = null;
+    releasePendingArtifact();
   };
   const onCreateAnother: EventListener = () => { ensureSelectionActive(); };
 
@@ -310,6 +345,7 @@ export async function createContentApp(
       destroyed = true;
       listeners.forEach(([type, listener]) => overlay.removeEventListener(type, listener));
       releaseRetained();
+      releasePendingArtifact();
       controller.destroy();
       overlay.destroy();
     },
@@ -317,6 +353,7 @@ export async function createContentApp(
 }
 
 function productionDependencies(): ContentAppDependencies {
+  const exportService = createExportService();
   return {
     document,
     location,
@@ -328,6 +365,8 @@ function productionDependencies(): ContentAppDependencies {
     generateAttributes: defaultGenerateAttributes,
     renderCard: defaultRenderCard,
     exportPng: defaultExportPng,
+    createPngArtifact: (canvas) => exportService.createPngArtifact(canvas),
+    downloadPngArtifact: (artifact, filename) => exportService.downloadPngArtifact(artifact, filename),
     createFilename: createPngFilename,
   };
 }

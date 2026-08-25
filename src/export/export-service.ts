@@ -27,7 +27,17 @@ export interface RetainedPngDownload {
 }
 
 export interface ExportService {
+  createPngArtifact(canvas: HTMLCanvasElement): Promise<PngArtifact>;
+  downloadPngArtifact(artifact: PngArtifact, filename: string): Promise<void>;
   exportPng(canvas: HTMLCanvasElement, filename: string): Promise<void>;
+}
+
+export interface PngArtifact {
+  readonly blob: Blob;
+  readonly url: string;
+  readonly width: number;
+  readonly height: number;
+  release(): void;
 }
 
 export class PngDownloadError extends Error {
@@ -135,49 +145,53 @@ async function attemptDownload(
   downloadWithAnchor(dependencies.document, url, filename);
 }
 
-class OwnedPngDownload implements RetainedPngDownload {
+class OwnedPngArtifact implements PngArtifact {
   private released = false;
-  private releaseRequested = false;
+
+  constructor(
+    readonly blob: Blob,
+    readonly url: string,
+    readonly width: number,
+    readonly height: number,
+    private readonly revokeObjectURL: (url: string) => void,
+  ) {}
+
+  release(): void {
+    if (this.released) return;
+    this.released = true;
+    this.revokeObjectURL(this.url);
+  }
+}
+
+class OwnedArtifactDownload implements RetainedPngDownload {
   private inFlight: Promise<void> | null = null;
+  private releaseRequested = false;
 
   constructor(
     private readonly dependencies: ExportServiceDependencies,
-    private readonly url: string,
+    private readonly artifact: PngArtifact,
     private readonly filename: string,
   ) {}
 
   retry(): Promise<void> {
-    if (this.released) return Promise.reject(new Error("PNG download is no longer available"));
     if (this.inFlight) return this.inFlight;
-
-    const operation = attemptDownload(this.dependencies, this.url, this.filename)
-      .then(() => {
-        this.revoke();
-      })
+    const operation = attemptDownload(this.dependencies, this.artifact.url, this.filename)
+      .then(() => this.artifact.release())
       .catch((cause: unknown) => {
-        if (this.releaseRequested) this.revoke();
+        if (this.releaseRequested) this.artifact.release();
         throw new PngDownloadError("Unable to download PNG", this, cause);
       })
-      .finally(() => {
-        this.inFlight = null;
-      });
+      .finally(() => { this.inFlight = null; });
     this.inFlight = operation;
     return operation;
   }
 
   release(): void {
-    if (this.released) return;
     if (this.inFlight) {
       this.releaseRequested = true;
       return;
     }
-    this.revoke();
-  }
-
-  private revoke(): void {
-    if (this.released) return;
-    this.released = true;
-    this.dependencies.revokeObjectURL(this.url);
+    this.artifact.release();
   }
 }
 
@@ -193,14 +207,22 @@ export function createExportService(
     revokeObjectURL: overrides.revokeObjectURL ?? ((url) => URL.revokeObjectURL(url)),
   };
 
-  return {
-    async exportPng(canvas, filename) {
+  const service: ExportService = {
+    async createPngArtifact(canvas) {
       const blob = await toPngBlob(canvas);
       const url = dependencies.createObjectURL(blob);
-      const retained = new OwnedPngDownload(dependencies, url, filename);
+      return new OwnedPngArtifact(blob, url, canvas.width, canvas.height, dependencies.revokeObjectURL);
+    },
+    async downloadPngArtifact(artifact, filename) {
+      const retained = new OwnedArtifactDownload(dependencies, artifact, filename);
       await retained.retry();
     },
+    async exportPng(canvas, filename) {
+      const artifact = await service.createPngArtifact(canvas);
+      await service.downloadPngArtifact(artifact, filename);
+    },
   };
+  return service;
 }
 
 const pad = (value: number): string => String(value).padStart(2, "0");

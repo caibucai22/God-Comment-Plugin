@@ -14,7 +14,7 @@ import {
   type SelectionState,
 } from "../../src/selection/selection-controller";
 import { OverlayRoot } from "../../src/ui/overlay-root";
-import { PngDownloadError, type RetainedPngDownload } from "../../src/export/export-service";
+import { PngDownloadError, type PngArtifact, type RetainedPngDownload } from "../../src/export/export-service";
 import {
   bootstrapContentApp,
   createContentApp,
@@ -171,7 +171,7 @@ describe("content application composition", () => {
   });
 
   async function makeRealDomHarness(
-    overrides: Partial<Pick<ContentAppDependencies, "renderCard" | "exportPng">> = {},
+    overrides: Partial<Pick<ContentAppDependencies, "renderCard" | "exportPng" | "createPngArtifact" | "downloadPngArtifact">> = {},
   ) {
     document.body.innerHTML = '<div data-real-comment>真实评论节点</div>';
     const comment = document.querySelector("[data-real-comment]") as HTMLElement;
@@ -218,6 +218,8 @@ describe("content application composition", () => {
         coverFallbackUsed: false,
       })),
       exportPng: overrides.exportPng ?? (async () => undefined),
+      createPngArtifact: overrides.createPngArtifact,
+      downloadPngArtifact: overrides.downloadPngArtifact,
       createFilename: () => "card.png",
     });
     if (!app || !overlay || !controller) throw new Error("real content app did not initialize");
@@ -325,8 +327,22 @@ describe("content application composition", () => {
   it("waits at generated preview and downloads only after confirmation", async () => {
     const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
     const exporting = deferred<void>();
-    const exportPng = vi.fn(() => exporting.promise);
-    const harness = await makeRealDomHarness({ renderCard: () => rendering.promise, exportPng });
+    const exportPng = vi.fn(async () => undefined);
+    const artifact: PngArtifact = {
+      blob: new Blob(["png"]),
+      url: "blob:preview-card",
+      width: 1200,
+      height: 1600,
+      release: vi.fn(),
+    };
+    const createPngArtifact = vi.fn(async () => artifact);
+    const downloadPngArtifact = vi.fn(() => exporting.promise);
+    const harness = await makeRealDomHarness({
+      renderCard: () => rendering.promise,
+      exportPng,
+      createPngArtifact,
+      downloadPngArtifact,
+    });
     (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
     harness.comment.click();
     (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
@@ -339,18 +355,36 @@ describe("content application composition", () => {
     await vi.waitFor(() => {
       expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
     });
+    expect((harness.overlay.shadowRoot!.querySelector('[alt="生成的评论卡片预览"]') as HTMLImageElement).src).toBe("blob:preview-card");
     expect(exportPng).not.toHaveBeenCalled();
+    expect(downloadPngArtifact).not.toHaveBeenCalled();
     expect(harness.controller.active).toBe(true);
 
     (harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(exportPng).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(downloadPngArtifact).toHaveBeenCalledWith(artifact, "card.png"));
 
     exporting.resolve();
     await settle();
-    expect(exportPng).toHaveBeenCalledOnce();
+    expect(exportPng).not.toHaveBeenCalled();
     expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]')).not.toBeNull();
     expect(harness.controller.active).toBe(false);
     expect(harness.states.at(-1)?.reason).toBe("toggle");
+  });
+
+  it("shows the failed state when PNG artifact creation fails", async () => {
+    const harness = await makeRealDomHarness({
+      createPngArtifact: async () => { throw new Error("blob failed"); },
+      downloadPngArtifact: async () => undefined,
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="failed"]')).not.toBeNull();
+    });
+    expect(harness.overlay.shadowRoot!.textContent).toContain("卡片生成失败");
   });
 
   it("shows the already-extracted source with current preferences and cancel preserves active selection", async () => {
