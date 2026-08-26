@@ -118,8 +118,12 @@ function adapter(): PlatformAdapter {
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
-  return { promise, resolve };
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 function makeHarness(overrides: Partial<ContentAppDependencies> = {}) {
@@ -351,17 +355,25 @@ describe("content application composition", () => {
     ) as HTMLButtonElement;
     expect(renderingCancel.disabled).toBe(true);
 
-    rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
+    const renderedCanvas = document.createElement("canvas");
+    renderedCanvas.width = 1200;
+    renderedCanvas.height = 1600;
+    rendering.resolve({ canvas: renderedCanvas, coverFallbackUsed: false });
     await vi.waitFor(() => {
       expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
     });
     expect((harness.overlay.shadowRoot!.querySelector('[alt="生成的评论卡片预览"]') as HTMLImageElement).src).toBe("blob:preview-card");
+    expect(harness.overlay.shadowRoot!.textContent).toContain("1200 × 1600");
     expect(exportPng).not.toHaveBeenCalled();
     expect(downloadPngArtifact).not.toHaveBeenCalled();
     expect(harness.controller.active).toBe(true);
 
     (harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(downloadPngArtifact).toHaveBeenCalledWith(artifact, "card.png"));
+    expect((harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((harness.overlay.shadowRoot!.querySelector('[aria-label="返回修改"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(harness.controller.active).toBe(false);
 
     exporting.resolve();
     await settle();
@@ -369,6 +381,145 @@ describe("content application composition", () => {
     expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]')).not.toBeNull();
     expect(harness.controller.active).toBe(false);
     expect(harness.states.at(-1)?.reason).toBe("toggle");
+  });
+
+  it("releases the pending preview artifact when the generated panel is closed", async () => {
+    const artifact: PngArtifact = {
+      blob: new Blob(["png"]),
+      url: "blob:preview-to-close",
+      width: 1200,
+      height: 1600,
+      release: vi.fn(),
+    };
+    const harness = await makeRealDomHarness({
+      createPngArtifact: async () => artifact,
+      downloadPngArtifact: async () => undefined,
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
+    });
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).click();
+
+    expect(artifact.release).toHaveBeenCalledOnce();
+    expect(harness.overlay.shadowRoot!.querySelector(".ccg-extension-panel")).toBeNull();
+  });
+
+  it("returns to editing when an in-flight generation is cancelled", async () => {
+    const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
+    const harness = await makeRealDomHarness({ renderCard: () => rendering.promise });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
+
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
+    rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
+    await settle();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).toBeNull();
+  });
+
+  it("ignores a cancelled render that later rejects", async () => {
+    const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
+    const renderCard = vi.fn(() => rendering.promise);
+    const harness = await makeRealDomHarness({ renderCard });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(renderCard).toHaveBeenCalledOnce());
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
+
+    rendering.reject(new Error("late render failure"));
+    await settle();
+
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="failed"]')).toBeNull();
+  });
+
+  it("keeps a newly selected comment when the previous render finishes late", async () => {
+    const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
+    const renderCard = vi.fn(() => rendering.promise);
+    const exportPng = vi.fn(async () => undefined);
+    const harness = makeHarness({ renderCard, exportPng });
+    await createContentApp(harness.dependencies);
+    harness.overlay.emit("toggle-selection");
+    harness.controller.select(source);
+    harness.overlay.emit("confirm-generate", { source, options: generatedOptions });
+    await vi.waitFor(() => expect(renderCard).toHaveBeenCalledOnce());
+    const replacement = { ...source, content: "新选择的评论" };
+    harness.controller.select(replacement);
+
+    rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
+    await settle();
+
+    expect(harness.overlay.confirmations.at(-1)?.source).toEqual(replacement);
+    expect(harness.overlay.busyStates).toEqual([true, false]);
+    expect(exportPng).not.toHaveBeenCalled();
+  });
+
+  it("ignores an artifact creation failure that arrives after cancellation", async () => {
+    const artifactCreation = deferred<PngArtifact>();
+    const createPngArtifact = vi.fn(() => artifactCreation.promise);
+    const harness = await makeRealDomHarness({
+      createPngArtifact,
+      downloadPngArtifact: async () => undefined,
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(createPngArtifact).toHaveBeenCalledOnce());
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
+
+    artifactCreation.reject(new Error("late artifact failure"));
+    await settle();
+
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="failed"]')).toBeNull();
+  });
+
+  it("moves a successful retained-download retry from generated to saved", async () => {
+    const retained: RetainedPngDownload = {
+      retry: vi.fn(async () => undefined),
+      release: vi.fn(),
+    };
+    const artifact: PngArtifact = {
+      blob: new Blob(["png"]),
+      url: "blob:retry-preview",
+      width: 1920,
+      height: 1080,
+      release: vi.fn(),
+    };
+    const renderedCanvas = document.createElement("canvas");
+    renderedCanvas.width = 1920;
+    renderedCanvas.height = 1080;
+    const harness = await makeRealDomHarness({
+      renderCard: async () => ({ canvas: renderedCanvas, coverFallbackUsed: false }),
+      createPngArtifact: async () => artifact,
+      downloadPngArtifact: async () => { throw new PngDownloadError("download failed", retained); },
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('[aria-label="再次下载"]')).not.toBeNull();
+    });
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="再次下载"]') as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]')).not.toBeNull();
+    });
+    expect(harness.overlay.shadowRoot!.textContent).toContain("1920 × 1080");
+    expect(retained.retry).toHaveBeenCalledOnce();
+    expect(harness.controller.active).toBe(false);
   });
 
   it("shows the failed state when PNG artifact creation fails", async () => {
@@ -525,7 +676,7 @@ describe("content application composition", () => {
     expect(renderCard).toHaveBeenCalledOnce();
     expect(exportPng).toHaveBeenCalledOnce();
     expect(harness.overlay.statuses.at(-1)).toEqual({ kind: "success", message: "卡片已保存" });
-    expect(harness.controller.exits).toEqual(["toggle"]);
+    expect(harness.controller.exits).toEqual(["toggle", "toggle"]);
   });
 
   it("does not complete or restore a retained download after retry is cancelled in flight", async () => {
@@ -550,7 +701,7 @@ describe("content application composition", () => {
     expect(retained.release).toHaveBeenCalledOnce();
     expect(harness.overlay.statuses.some((status) => status.kind === "success")).toBe(false);
     expect(harness.controller.active).toBe(true);
-    expect(harness.controller.exits).toEqual([]);
+    expect(harness.controller.exits).toEqual(["toggle", "toggle"]);
   });
 
   it("releases retained downloads on replacement, cancel, status dismissal, and idempotent destroy", async () => {

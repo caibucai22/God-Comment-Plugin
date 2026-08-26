@@ -77,7 +77,7 @@ describe("OverlayRoot", () => {
     expect(overlay.shadowRoot!.querySelector('[aria-label="取消制作"]')).not.toBeNull();
 
     overlay.setGenerationBusy(false);
-    expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generating"]')).not.toBeNull();
+    expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
   });
 
   it("mounts confirmation inside the single shared extension panel shell", () => {
@@ -93,6 +93,20 @@ describe("OverlayRoot", () => {
     expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
     expect(overlay.shadowRoot!.querySelector(".ccg-extension-panel .ccg-state-content--editing")).not.toBeNull();
     expect(overlay.shadowRoot!.textContent).not.toContain("BETA");
+  });
+
+  it("shows the actual exported dimensions in the saved state", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+    overlay.showConfirm(
+      { platform: "bilibili", content: "横版尺寸测试" },
+      { style: "bilibili", ratio: "16:9", includeCover: false, gameDecoration: false },
+    );
+
+    overlay.showSaved("1920 × 1080");
+
+    const panel = overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]');
+    expect(panel?.textContent).toContain("1920 × 1080");
   });
 
   it("renders a retry action and distinguishes retry from dismissing the retained download", () => {

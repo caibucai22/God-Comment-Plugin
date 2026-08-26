@@ -19,8 +19,12 @@ export class OverlayRoot extends EventTarget {
   private confirmation: { source: CommentCardSource; preferences: CardPreferences; originalContent: string } | null = null;
   private status: Status | null = null;
   private generationBusy = false;
+  private saveBusy = false;
   private panelState: PanelState = "editing";
   private previewUrl: string | undefined;
+  private previewDimensions: string | undefined;
+  private previewRatio: "3:4" | "16:9" | undefined;
+  private savedDimensions: string | undefined;
   private destroyed = false;
 
   constructor(private readonly document: Document) {
@@ -52,13 +56,20 @@ export class OverlayRoot extends EventTarget {
     this.confirmation = { source, preferences, originalContent: source.content };
     this.panelState = "editing";
     this.previewUrl = undefined;
+    this.previewDimensions = undefined;
+    this.previewRatio = undefined;
+    this.savedDimensions = undefined;
+    this.status = null;
     this.render();
   }
 
-  showGenerated(previewUrl?: string): void {
+  showGenerated(previewUrl?: string, dimensions?: string, ratio?: "3:4" | "16:9"): void {
     if (this.destroyed || !this.confirmation) return;
     this.panelState = "generated";
     this.previewUrl = previewUrl;
+    this.previewDimensions = dimensions;
+    this.previewRatio = ratio;
+    this.status = null;
     this.render();
   }
 
@@ -73,11 +84,11 @@ export class OverlayRoot extends EventTarget {
     if (this.destroyed || !this.confirmation) return;
     this.panelState = "saved";
     this.previewUrl = undefined;
+    this.previewDimensions = undefined;
+    this.previewRatio = undefined;
+    this.savedDimensions = dimensions;
     this.status = null;
-    this.confirmation.preferences = { ...this.confirmation.preferences };
     this.render();
-    const panel = this.root?.querySelector(".ccg-extension-panel");
-    panel?.setAttribute("data-saved-dimensions", dimensions);
   }
 
   showStatus(kind: StatusKind, message: string): void {
@@ -96,6 +107,13 @@ export class OverlayRoot extends EventTarget {
     if (this.destroyed || this.generationBusy === busy) return;
     this.generationBusy = busy;
     if (busy && this.confirmation) this.panelState = "generating";
+    else if (!busy && this.panelState === "generating") this.panelState = "editing";
+    this.render();
+  }
+
+  setSaveBusy(busy: boolean): void {
+    if (this.destroyed || this.saveBusy === busy) return;
+    this.saveBusy = busy;
     this.render();
   }
 
@@ -108,6 +126,10 @@ export class OverlayRoot extends EventTarget {
     this.confirmation = null;
     this.status = null;
     this.generationBusy = false;
+    this.saveBusy = false;
+    this.savedDimensions = undefined;
+    this.previewDimensions = undefined;
+    this.previewRatio = undefined;
   }
 
   private render(): void {
@@ -144,10 +166,19 @@ export class OverlayRoot extends EventTarget {
         preferences: confirmation.preferences,
         draftContent: confirmation.source.content,
         previewUrl: this.previewUrl,
+        previewInfo: this.panelState === "generated" && this.previewDimensions
+          ? {
+              ratio: this.previewRatio ?? (confirmation.preferences.ratio === "16:9" ? "16:9" : "3:4"),
+              dimensions: this.previewDimensions,
+            }
+          : undefined,
+        saveInfo: this.panelState === "saved"
+          ? { format: "PNG", dimensions: this.savedDimensions ?? "1200 × 1600", location: "本地下载" }
+          : undefined,
       },
       {
         onClose: () => {
-          if (this.destroyed || this.generationBusy) return;
+          if (this.destroyed || this.generationBusy || this.saveBusy) return;
           this.confirmation = null;
           this.render();
           this.emit("cancel-generate");
@@ -175,8 +206,9 @@ export class OverlayRoot extends EventTarget {
         onCancelGeneration: () => this.emit("cancel-generation"),
         onRetryGeneration: () => this.emit("retry-generation"),
         onReturnEditing: () => {
-          if (this.destroyed || !this.confirmation) return;
+          if (this.destroyed || !this.confirmation || this.saveBusy) return;
           this.panelState = "editing";
+          this.savedDimensions = undefined;
           this.render();
           this.emit("return-editing");
         },
@@ -185,6 +217,7 @@ export class OverlayRoot extends EventTarget {
           if (this.destroyed) return;
           this.confirmation = null;
           this.panelState = "editing";
+          this.savedDimensions = undefined;
           this.render();
           this.emit("create-another");
         },
@@ -193,7 +226,11 @@ export class OverlayRoot extends EventTarget {
     this.root.querySelector(".ccg-panel-slot")!.append(shell);
     const generate = shell.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement | null;
     if (generate) generate.disabled = this.generationBusy;
-    (shell.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).disabled = this.generationBusy;
+    const save = shell.querySelector('[aria-label="确认保存"]') as HTMLButtonElement | null;
+    if (save) save.disabled = this.saveBusy;
+    const returnEditing = shell.querySelector('[aria-label="返回修改"]') as HTMLButtonElement | null;
+    if (returnEditing) returnEditing.disabled = this.saveBusy;
+    (shell.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).disabled = this.generationBusy || this.saveBusy;
   }
 
   private emit(

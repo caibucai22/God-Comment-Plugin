@@ -9,6 +9,10 @@ export interface PanelViewModel {
   readonly draftContent?: string;
   readonly errorMessage?: string;
   readonly previewUrl?: string;
+  readonly previewInfo?: {
+    readonly ratio: "3:4" | "16:9";
+    readonly dimensions: string;
+  };
   readonly progress?: number;
   readonly saveInfo?: {
     readonly format: "PNG";

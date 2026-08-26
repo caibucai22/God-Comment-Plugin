@@ -13,6 +13,7 @@ export interface ExtensionPanelHandlers {
   readonly onReturnEditing?: () => void;
   readonly onConfirmSave?: () => void;
   readonly onCreateAnother?: () => void;
+  readonly onOpenFolder?: () => void;
 }
 
 const stateLabels: Readonly<Record<PanelState, string>> = {
@@ -231,23 +232,65 @@ function appendStateContent(document: Document, viewport: HTMLElement, model: Pa
     const actions = document.createElement("footer");
     actions.className = "ccg-panel-actions ccg-panel-actions--state";
     if (model.state === "generating") {
+      const progress = document.createElement("div");
+      progress.className = "ccg-generation-progress";
+      progress.setAttribute("role", "progressbar");
+      progress.setAttribute("aria-label", "卡片制作进度");
+      progress.setAttribute("aria-valuemin", "0");
+      progress.setAttribute("aria-valuemax", "100");
+      const track = document.createElement("span");
+      const fill = document.createElement("i");
+      if (model.progress === undefined) {
+        progress.classList.add("ccg-generation-progress--indeterminate");
+      } else {
+        progress.setAttribute("aria-valuenow", String(model.progress));
+        fill.style.width = `${model.progress}%`;
+      }
+      track.append(fill);
+      const number = document.createElement("strong");
+      number.textContent = model.progress === undefined ? "制作中" : `${model.progress}%`;
+      progress.append(track, number);
+      const tip = document.createElement("aside");
+      tip.className = "ccg-generation-tip";
+      tip.innerHTML = "<strong>小贴士</strong><span>卡片生成需要一点时间<br>请耐心等待哦~</span>";
+      content.append(progress, tip);
       const cancel = button(document, "取消制作", "取消制作");
       cancel.addEventListener("click", () => handlers.onCancelGeneration?.());
       actions.append(cancel);
     } else if (model.state === "failed") {
+      const reasons = document.createElement("section");
+      reasons.className = "ccg-failure-reasons";
+      const reasonsTitle = document.createElement("strong");
+      reasonsTitle.textContent = "可能的原因";
+      const list = document.createElement("ul");
+      for (const reason of ["页面连接异常", "卡片内容暂不可用", "浏览器暂时无法完成生成"]) {
+        const item = document.createElement("li");
+        item.textContent = reason;
+        list.append(item);
+      }
+      reasons.append(reasonsTitle, list);
+      content.append(reasons);
       const back = button(document, "返回修改", "返回修改");
       const retry = button(document, "重新生成", "重新生成");
       back.addEventListener("click", () => handlers.onReturnEditing?.());
       retry.addEventListener("click", () => handlers.onRetryGeneration?.());
       actions.append(back, retry);
     } else if (model.state === "generated") {
+      illustration.remove();
+      heading.remove();
       if (model.previewUrl) {
         const preview = document.createElement("img");
         preview.className = "ccg-generated-preview";
         preview.src = model.previewUrl;
         preview.alt = "生成的评论卡片预览";
-        content.insertBefore(preview, heading);
+        content.prepend(preview);
       }
+      const previewMeta = document.createElement("p");
+      previewMeta.className = "ccg-preview-meta";
+      previewMeta.textContent = model.previewInfo
+        ? `预览比例：${model.previewInfo.ratio}　${model.previewInfo.dimensions}`
+        : `预览比例：${model.preferences.ratio === "16:9" ? "16:9" : "3:4"}`;
+      content.append(previewMeta);
       const back = button(document, "返回修改", "返回修改");
       const save = button(document, "确认保存", "确认保存");
       back.addEventListener("click", () => handlers.onReturnEditing?.());
@@ -265,10 +308,17 @@ function appendStateContent(document: Document, viewport: HTMLElement, model: Pa
         info.append(term, detail);
       }
       content.append(info);
+      const open = button(document, "打开文件夹", "打开文件夹");
+      if (!handlers.onOpenFolder) {
+        open.disabled = true;
+        open.title = "浏览器暂不支持直接打开下载文件夹";
+      }
+      open.addEventListener("click", () => handlers.onOpenFolder?.());
       const another = button(document, "再做一张", "再做一张");
       another.addEventListener("click", () => handlers.onCreateAnother?.());
-      actions.append(another);
+      actions.append(open, another);
     }
+    if (actions.childElementCount === 1) actions.classList.add("ccg-panel-actions--single");
     content.append(actions);
   }
   viewport.append(content);

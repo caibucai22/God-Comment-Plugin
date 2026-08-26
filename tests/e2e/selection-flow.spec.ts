@@ -87,25 +87,54 @@ test("loads the unpacked extension and downloads a non-empty PNG through the ful
   );
   await comment.click();
 
-  const confirm = page.getByRole("region", { name: "生成评论卡片" });
+  const confirm = page.getByRole("region", { name: "流光卡片核" });
   await expect(confirm).toBeVisible();
-  await expect(confirm.getByText("历史不是过去的回声，而是今天仍在发生的选择。")).toBeVisible();
-  await expect(confirm.locator('input[name="ccg-style"]')).toHaveCount(4);
+  await expect(confirm.getByRole("textbox", { name: "评论文字" })).toHaveValue(
+    "历史不是过去的回声，而是今天仍在发生的选择。",
+  );
+  await expect(confirm.locator('input[name="ccg-style"]')).toHaveCount(5);
   await expect(confirm.locator('input[name="ccg-ratio"][value="3:4"]')).toBeChecked();
+  await confirm.getByRole("button", { name: "更多选项" }).click();
   await expect(confirm.getByRole("checkbox", { name: "包含视频封面" })).toBeEnabled();
   await expect(confirm.getByRole("checkbox", { name: "包含视频封面" })).toBeChecked();
   await expect(confirm.getByRole("checkbox", { name: "添加游戏化装饰" })).not.toBeChecked();
 
+  await confirm.getByRole("button", { name: "制作卡片" }).click();
+  await expect(confirm).toHaveAttribute("data-panel-state", "generated", { timeout: 20_000 });
   const observedDownload = page.waitForEvent("download", { timeout: 20_000 });
-  await confirm.getByRole("button", { name: "生成卡片" }).click();
+  await confirm.getByRole("button", { name: "确认保存" }).click();
   const download = await observedDownload;
-  await expect(page.getByRole("status").locator("span")).toHaveText("卡片已保存", { timeout: 20_000 });
+  await expect(confirm).toHaveAttribute("data-panel-state", "saved", { timeout: 20_000 });
+  await expect(confirm.getByRole("heading", { name: "保存成功" })).toBeVisible();
   expect(download.suggestedFilename()).toMatch(/\.png$/u);
   expect(await download.failure()).toBeNull();
   const pngPath = await download.path();
   expect(pngPath).not.toBeNull();
   if (!pngPath) throw new Error("Playwright did not retain the PNG download");
   expect((await stat(pngPath)).size).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+test("renders and saves the horizontal 16:9 card through the production panel", async ({ extension }) => {
+  const { page, url, errors } = extension;
+  await page.goto(url);
+  await enterSelection(page);
+  await page.getByTestId("comment-item").first().click();
+  const panel = page.getByRole("region", { name: "流光卡片核" });
+  await panel.getByRole("button", { name: "样式设置" }).click();
+  await panel.getByLabel("16:9 横版").check();
+
+  await panel.getByRole("button", { name: "制作卡片" }).click();
+
+  await expect(panel).toHaveAttribute("data-panel-state", "generated", { timeout: 20_000 });
+  await expect(panel.getByText(/预览比例：16:9/u)).toBeVisible();
+  await expect(panel.getByText(/1920 × 1080/u)).toBeVisible();
+  const observedDownload = page.waitForEvent("download", { timeout: 20_000 });
+  await panel.getByRole("button", { name: "确认保存" }).click();
+  const download = await observedDownload;
+  expect(await download.failure()).toBeNull();
+  await expect(panel).toHaveAttribute("data-panel-state", "saved", { timeout: 20_000 });
+  await expect(panel.getByText("1920 × 1080")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -160,7 +189,7 @@ test("reduced motion disables the cyclic entry animation without blocking select
   await expect(highlight).toBeVisible();
   expect(await highlight.evaluate((element) => getComputedStyle(element, "::before").animationName)).toBe("none");
   await comment.click();
-  await expect(page.getByRole("region", { name: "生成评论卡片" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "流光卡片核" })).toBeVisible();
 });
 
 test("selects a real-structure modern reply and keeps the visual layer continuous", async ({ extension }) => {
@@ -181,10 +210,12 @@ test("selects a real-structure modern reply and keeps the visual layer continuou
   await expect(highlight).toHaveAttribute("data-e2e-identity", "continuous");
   await firstReply.click();
 
-  const confirm = page.getByRole("region", { name: "生成评论卡片" });
+  const confirm = page.getByRole("region", { name: "流光卡片核" });
   await expect(confirm).toBeVisible();
-  await expect(confirm.getByText("默认展示回复一。")).toBeVisible();
-  await expect(confirm.getByText("默认顶层 Shadow DOM 评论。")).toHaveCount(0);
+  await expect(confirm.getByRole("textbox", { name: "评论文字" })).toHaveValue("默认展示回复一。");
+  await expect(confirm.getByRole("textbox", { name: "评论文字" })).not.toHaveValue(
+    "默认顶层 Shadow DOM 评论。",
+  );
   expect(errors).toEqual([]);
 });
 

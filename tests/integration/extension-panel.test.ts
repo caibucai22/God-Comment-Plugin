@@ -89,8 +89,11 @@ describe("ExtensionPanel shared shell", () => {
     const generated = createExtensionPanel(document, {
       ...model("generated"),
       previewUrl: "data:image/png;base64,cHJldmlldw==",
+      previewInfo: { ratio: "16:9", dimensions: "1920 × 1080" },
     }, handlers);
     expect(generated.querySelector('img[alt="生成的评论卡片预览"]')).not.toBeNull();
+    expect(generated.textContent).toContain("预览比例：16:9");
+    expect(generated.textContent).toContain("1920 × 1080");
     (generated.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
     expect(handlers.onConfirmSave).toHaveBeenCalledOnce();
 
@@ -101,10 +104,13 @@ describe("ExtensionPanel shared shell", () => {
     expect(handlers.onReturnEditing).toHaveBeenCalledOnce();
 
     const generating = createExtensionPanel(document, model("generating"), handlers);
+    expect(generating.querySelector('[role="progressbar"]')?.hasAttribute("aria-valuenow")).toBe(false);
+    expect(generating.textContent).toContain("制作中");
     (generating.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
     expect(handlers.onCancelGeneration).toHaveBeenCalledOnce();
 
     const saved = createExtensionPanel(document, model("saved"), handlers);
+    expect((saved.querySelector('[aria-label="打开文件夹"]') as HTMLButtonElement).disabled).toBe(true);
     (saved.querySelector('[aria-label="再做一张"]') as HTMLButtonElement).click();
     expect(handlers.onCreateAnother).toHaveBeenCalledOnce();
   });
