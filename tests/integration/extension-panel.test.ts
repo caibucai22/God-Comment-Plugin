@@ -31,6 +31,24 @@ describe("ExtensionPanel shared shell", () => {
     expect(panel.querySelector("[data-five-column-layout]")).toBeNull();
   });
 
+  it.each(states)("renders real pixel assets without missing placeholders for %s", (state) => {
+    const panel = createExtensionPanel(document, model(state), {});
+    const logo = panel.querySelector<HTMLImageElement>('[data-pixel-asset="panel-logo"]');
+    const decoration = panel.querySelector<HTMLImageElement>(`[data-pixel-asset="bottom-${state}"]`);
+
+    expect(logo?.getAttribute("src")).toContain("mascot-master.png");
+    expect(decoration?.getAttribute("src")).toContain(`bottom-${state}.png`);
+    expect(panel.querySelector("[data-missing-asset]")).toBeNull();
+  });
+
+  it.each(["generating", "failed", "saved"] as const)("uses the matching state illustration for %s", (state) => {
+    const panel = createExtensionPanel(document, model(state), {});
+    const illustration = panel.querySelector<HTMLImageElement>(`[data-pixel-asset="state-${state}"]`);
+
+    expect(illustration?.getAttribute("src")).toContain(`state-${state}.png`);
+    expect(illustration?.alt).toBe("");
+  });
+
   it("maps each state to one active step", () => {
     for (const state of states) {
       const panel = createExtensionPanel(document, model(state), {});

@@ -30,6 +30,21 @@ test("follows the primary state transition path in one panel", async ({ page }) 
   await expect(page.locator('[data-panel-state="editing"]')).toBeVisible();
 });
 
+test("keeps generated preview actions fully inside the fixed state viewport", async ({ page }) => {
+  await page.goto("/panel-preview.html?state=generated");
+  const viewport = page.locator(".ccg-state-viewport");
+  const actions = page.locator(".ccg-panel-actions");
+  const viewportBounds = await viewport.boundingBox();
+  const actionBounds = await actions.boundingBox();
+
+  expect(actionBounds).not.toBeNull();
+  expect(viewportBounds).not.toBeNull();
+  expect(actionBounds!.y + actionBounds!.height).toBeLessThanOrEqual(viewportBounds!.y + viewportBounds!.height);
+  expect(await viewport.evaluate((element) => element.scrollHeight)).toBeLessThanOrEqual(
+    await viewport.evaluate((element) => element.clientHeight),
+  );
+});
+
 test("captures explicitly requested visual QA artifacts", async ({ page }) => {
   const round = process.env.CCG_VISUAL_QA_ROUND;
   test.skip(!round, "Set CCG_VISUAL_QA_ROUND to capture visual QA screenshots");

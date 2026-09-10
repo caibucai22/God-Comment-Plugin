@@ -24,6 +24,22 @@ const stateLabels: Readonly<Record<PanelState, string>> = {
   saved: "保存成功",
 };
 
+const bottomAssetByState: Readonly<Record<PanelState, string>> = {
+  editing: new URL("../assets/pixel-panel/generated/bottom-editing.png", import.meta.url).href,
+  generating: new URL("../assets/pixel-panel/generated/bottom-generating.png", import.meta.url).href,
+  failed: new URL("../assets/pixel-panel/generated/bottom-failed.png", import.meta.url).href,
+  generated: new URL("../assets/pixel-panel/generated/bottom-generated.png", import.meta.url).href,
+  saved: new URL("../assets/pixel-panel/generated/bottom-saved.png", import.meta.url).href,
+};
+
+const illustrationAssetByState = {
+  generating: new URL("../assets/pixel-panel/generated/state-generating.png", import.meta.url).href,
+  failed: new URL("../assets/pixel-panel/generated/state-failed.png", import.meta.url).href,
+  saved: new URL("../assets/pixel-panel/generated/state-saved.png", import.meta.url).href,
+} as const;
+
+const panelLogoAsset = new URL("../assets/pixel-panel/generated/mascot-master.png", import.meta.url).href;
+
 function appendStepper(document: Document, panel: HTMLElement, state: PanelState): void {
   const stepper = document.createElement("ol");
   stepper.className = "ccg-stepper";
@@ -217,10 +233,14 @@ function appendStateContent(document: Document, viewport: HTMLElement, model: Pa
   if (model.state === "editing") {
     renderEditing(document, content, model, handlers);
   } else {
-    const illustration = document.createElement("div");
+    const illustration = document.createElement("img");
     illustration.className = "ccg-state-illustration";
-    illustration.dataset.missingAsset = `${model.state}-illustration`;
-    illustration.setAttribute("aria-hidden", "true");
+    illustration.alt = "";
+    if (model.state in illustrationAssetByState) {
+      const illustrationState = model.state as keyof typeof illustrationAssetByState;
+      illustration.src = illustrationAssetByState[illustrationState];
+      illustration.dataset.pixelAsset = `state-${illustrationState}`;
+    }
     const heading = document.createElement("h2");
     heading.textContent = stateLabels[model.state];
     content.append(illustration, heading);
@@ -336,10 +356,11 @@ export function createExtensionPanel(
 
   const header = document.createElement("header");
   header.className = "ccg-panel-header";
-  const logo = document.createElement("span");
+  const logo = document.createElement("img");
   logo.className = "ccg-panel-logo";
-  logo.dataset.missingAsset = "cardflow-logo";
-  logo.setAttribute("aria-hidden", "true");
+  logo.src = panelLogoAsset;
+  logo.alt = "";
+  logo.dataset.pixelAsset = "panel-logo";
   const title = document.createElement("strong");
   title.textContent = "流光卡片核";
   const close = document.createElement("button");
@@ -357,10 +378,11 @@ export function createExtensionPanel(
   appendStateContent(document, viewport, model, handlers);
   panel.append(viewport);
 
-  const decoration = document.createElement("div");
+  const decoration = document.createElement("img");
   decoration.className = "ccg-bottom-decoration";
-  decoration.dataset.missingAsset = `${model.state}-bottom-decoration`;
-  decoration.setAttribute("aria-hidden", "true");
+  decoration.src = bottomAssetByState[model.state];
+  decoration.alt = "";
+  decoration.dataset.pixelAsset = `bottom-${model.state}`;
   panel.append(decoration);
   return panel;
 }
