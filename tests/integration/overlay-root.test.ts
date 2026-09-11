@@ -92,7 +92,24 @@ describe("OverlayRoot", () => {
     expect(overlay.shadowRoot!.querySelectorAll(".ccg-extension-panel")).toHaveLength(1);
     expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
     expect(overlay.shadowRoot!.querySelector(".ccg-extension-panel .ccg-state-content--editing")).not.toBeNull();
+    expect(overlay.shadowRoot!.querySelector(".ccg-entry")).toBeNull();
+    expect(overlay.shadowRoot!.querySelector(".ccg-selection-prompt")).toBeNull();
     expect(overlay.shadowRoot!.textContent).not.toContain("BETA");
+  });
+
+  it("hides active selection controls while editing a selected comment", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+    overlay.setSelectionActive(true);
+    expect(overlay.shadowRoot!.querySelector(".ccg-selection-prompt")).not.toBeNull();
+
+    overlay.showConfirm(
+      { platform: "bilibili", content: "进入编辑态" },
+      { style: "warm", ratio: "3:4", includeCover: false, gameDecoration: false },
+    );
+
+    expect(overlay.shadowRoot!.querySelector(".ccg-entry")).toBeNull();
+    expect(overlay.shadowRoot!.querySelector(".ccg-selection-prompt")).toBeNull();
   });
 
   it("shows the actual exported dimensions in the saved state", () => {
@@ -107,6 +124,20 @@ describe("OverlayRoot", () => {
 
     const panel = overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]');
     expect(panel?.textContent).toContain("1920 × 1080");
+  });
+
+  it("keeps generation failure inside the fixed panel without an external status", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+    overlay.showConfirm(
+      { platform: "bilibili", content: "失败态测试" },
+      { style: "warm", ratio: "3:4", includeCover: false, gameDecoration: false },
+    );
+
+    overlay.showFailed("渲染失败，请重试");
+
+    expect(overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="failed"]')?.textContent).toContain("渲染失败，请重试");
+    expect(overlay.shadowRoot!.querySelector(".ccg-status")).toBeNull();
   });
 
   it("renders a retry action and distinguishes retry from dismissing the retained download", () => {

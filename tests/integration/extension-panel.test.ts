@@ -24,8 +24,9 @@ describe("ExtensionPanel shared shell", () => {
     expect(panel.matches('.ccg-extension-panel[data-panel-state="' + state + '"]')).toBe(true);
     expect(panel.querySelectorAll(".ccg-extension-panel")).toHaveLength(0);
     expect(panel.querySelectorAll(".ccg-panel-header")).toHaveLength(1);
-    expect(panel.querySelectorAll(".ccg-stepper")).toHaveLength(1);
+    expect(panel.querySelectorAll(".ccg-stepper")).toHaveLength(0);
     expect(panel.querySelectorAll(".ccg-state-viewport")).toHaveLength(1);
+    expect(panel.querySelectorAll(".ccg-panel-action-area")).toHaveLength(1);
     expect(panel.querySelectorAll(".ccg-bottom-decoration")).toHaveLength(1);
     expect(panel.textContent).not.toContain("BETA");
     expect(panel.querySelector("[data-five-column-layout]")).toBeNull();
@@ -49,13 +50,6 @@ describe("ExtensionPanel shared shell", () => {
     expect(illustration?.alt).toBe("");
   });
 
-  it("maps each state to one active step", () => {
-    for (const state of states) {
-      const panel = createExtensionPanel(document, model(state), {});
-      expect(panel.querySelectorAll('.ccg-stepper [aria-current="step"]')).toHaveLength(1);
-    }
-  });
-
   it("renders the reference editing controls in three accordion sections", () => {
     const panel = createExtensionPanel(document, model("editing"), {});
 
@@ -66,6 +60,10 @@ describe("ExtensionPanel shared shell", () => {
     expect(panel.querySelector('input[name="ccg-ratio"][value="16:9"]')).not.toBeNull();
     expect((panel.querySelector('[aria-label="显示趣味属性"]') as HTMLInputElement).checked).toBe(false);
     expect(panel.querySelector('input[name="ccg-panel-skin"][value="pixel"]')).not.toBeNull();
+    expect(panel.querySelector('[data-accordion-summary="style"]')?.textContent).toBe("温暖 · 3:4");
+    expect(panel.querySelector('[data-accordion-summary="more"]')?.textContent).toBe("默认设置");
+    expect(panel.querySelector('[aria-label="恢复原文"]')?.textContent).toBe("恢复原文");
+    expect(panel.querySelector(".ccg-character-count")?.textContent).toBe(`${model("editing").source.content.length} / 500`);
   });
 
   it("edits, restores, validates, and emits a trimmed comment", () => {
@@ -83,6 +81,7 @@ describe("ExtensionPanel shared shell", () => {
     textarea.value = " 修改后的评论 ";
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
     expect(onDraftChange).toHaveBeenCalledWith(" 修改后的评论 ");
+    expect(panel.querySelector(".ccg-character-count")?.textContent).toBe("8 / 500");
     (panel.querySelector('[aria-label="恢复原文"]') as HTMLButtonElement).click();
     expect(onRestoreOriginal).toHaveBeenCalledOnce();
 
@@ -94,6 +93,42 @@ describe("ExtensionPanel shared shell", () => {
     textarea.value = "  可生成正文  ";
     (panel.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
     expect(onGenerate).toHaveBeenCalledWith(expect.objectContaining({ content: "可生成正文" }), expect.any(Object));
+  });
+
+  it("updates accordion summaries and restores initial controls when reset", () => {
+    const onPanelSkinChange = vi.fn();
+    const panel = createExtensionPanel(document, model("editing"), { onPanelSkinChange });
+    document.body.append(panel);
+
+    const style = panel.querySelector('input[name="ccg-style"][value="history"]') as HTMLInputElement;
+    style.click();
+    expect(panel.querySelector('[data-accordion-summary="style"]')?.textContent).toBe("历史 · 3:4");
+
+    const attributes = panel.querySelector('[aria-label="显示趣味属性"]') as HTMLInputElement;
+    attributes.click();
+    expect(panel.querySelector('[data-accordion-summary="more"]')?.textContent).toBe("已选 1 项");
+
+    const textarea = panel.querySelector('[aria-label="评论文字"]') as HTMLTextAreaElement;
+    textarea.value = "已修改";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    (panel.querySelector('[aria-label="重置卡片设置"]') as HTMLButtonElement).click();
+
+    expect(textarea.value).toBe(model("editing").source.content);
+    expect((panel.querySelector('input[name="ccg-style"][value="warm"]') as HTMLInputElement).checked).toBe(true);
+    expect(attributes.checked).toBe(false);
+    expect(panel.querySelector('[data-accordion-summary="style"]')?.textContent).toBe("温暖 · 3:4");
+    expect(panel.querySelector('[data-accordion-summary="more"]')?.textContent).toBe("默认设置");
+  });
+
+  it("allows the open accordion to collapse", () => {
+    const panel = createExtensionPanel(document, model("editing"), {});
+    const trigger = panel.querySelector('[data-accordion-trigger="content"]') as HTMLButtonElement;
+    const content = panel.querySelector('[data-accordion-panel="content"]') as HTMLElement;
+
+    trigger.click();
+
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(content.hidden).toBe(true);
   });
 
   it("renders state-specific actions without changing the shared shell", () => {
@@ -112,6 +147,8 @@ describe("ExtensionPanel shared shell", () => {
     expect(generated.querySelector('img[alt="生成的评论卡片预览"]')).not.toBeNull();
     expect(generated.textContent).toContain("预览比例：16:9");
     expect(generated.textContent).toContain("1920 × 1080");
+    expect(generated.querySelector(".ccg-state-content .ccg-panel-actions")).toBeNull();
+    expect(generated.querySelector(".ccg-panel-action-area .ccg-panel-actions")).not.toBeNull();
     (generated.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
     expect(handlers.onConfirmSave).toHaveBeenCalledOnce();
 

@@ -1,6 +1,5 @@
 import type { CardRatio, CardStyle, CommentCardSource, GenerateOptions, PanelSkin } from "../domain/types";
 import type { PanelState, PanelViewModel } from "./panel-state";
-import { panelStep } from "./panel-state";
 
 export interface ExtensionPanelHandlers {
   readonly onClose?: () => void;
@@ -40,23 +39,6 @@ const illustrationAssetByState = {
 
 const panelLogoAsset = new URL("../assets/pixel-panel/generated/mascot-master.png", import.meta.url).href;
 
-function appendStepper(document: Document, panel: HTMLElement, state: PanelState): void {
-  const stepper = document.createElement("ol");
-  stepper.className = "ccg-stepper";
-  stepper.setAttribute("aria-label", "卡片制作进度");
-  const current = panelStep[state];
-  for (let step = 1; step <= 5; step += 1) {
-    const item = document.createElement("li");
-    item.dataset.complete = String(step < current);
-    if (step === current) item.setAttribute("aria-current", "step");
-    const marker = document.createElement("span");
-    marker.textContent = String(step);
-    item.append(marker);
-    stepper.append(item);
-  }
-  panel.append(stepper);
-}
-
 function button(document: Document, label: string, text: string): HTMLButtonElement {
   const element = document.createElement("button");
   element.type = "button";
@@ -71,11 +53,23 @@ function accordionSection(
   name: string,
   title: string,
   expanded: boolean,
+  summary?: string,
 ): HTMLElement {
   const section = document.createElement("section");
   section.className = "ccg-accordion";
   const trigger = button(document, `${title}设置`, title);
   trigger.className = "ccg-accordion__trigger";
+  trigger.textContent = "";
+  const titleElement = document.createElement("strong");
+  titleElement.textContent = title;
+  trigger.append(titleElement);
+  if (summary) {
+    const summaryElement = document.createElement("span");
+    summaryElement.className = "ccg-accordion__summary";
+    summaryElement.dataset.accordionSummary = name;
+    summaryElement.textContent = summary;
+    trigger.append(summaryElement);
+  }
   trigger.dataset.accordionTrigger = name;
   trigger.setAttribute("aria-expanded", String(expanded));
   trigger.setAttribute("aria-controls", `ccg-panel-${name}`);
@@ -85,10 +79,11 @@ function accordionSection(
   panel.id = `ccg-panel-${name}`;
   panel.hidden = !expanded;
   trigger.addEventListener("click", () => {
+    const shouldExpand = panel.hidden;
     parent.querySelectorAll<HTMLElement>("[data-accordion-panel]").forEach((item) => { item.hidden = true; });
     parent.querySelectorAll<HTMLButtonElement>("[data-accordion-trigger]").forEach((item) => item.setAttribute("aria-expanded", "false"));
-    panel.hidden = false;
-    trigger.setAttribute("aria-expanded", "true");
+    panel.hidden = !shouldExpand;
+    trigger.setAttribute("aria-expanded", String(shouldExpand));
   });
   section.append(trigger, panel);
   parent.append(section);
@@ -141,12 +136,36 @@ function switchControl(document: Document, parent: HTMLElement, label: string, c
 function renderEditing(
   document: Document,
   content: HTMLElement,
+  actionArea: HTMLElement,
   model: PanelViewModel,
   handlers: ExtensionPanelHandlers,
 ): void {
+  const styleNames: Readonly<Record<CardStyle, string>> = {
+    bilibili: "Bilibili",
+    warm: "温暖",
+    history: "历史",
+    sarcasm: "嘲讽",
+    sss: "SSS",
+  };
+  const selectedOptionCount = [
+    Boolean(model.source.videoCoverUrl) && model.preferences.includeCover,
+    model.preferences.includeAttributes,
+    model.preferences.gameDecoration,
+    model.preferences.soundEnabled,
+  ].filter(Boolean).length;
+  const moreSummary = selectedOptionCount > 0
+    ? `已选 ${selectedOptionCount} 项`
+    : model.preferences.panelSkin === "classic-dark" ? "经典深色" : "默认设置";
   const contentPanel = accordionSection(document, content, "content", "内容设置", true);
-  const stylePanel = accordionSection(document, content, "style", "样式设置", false);
-  const morePanel = accordionSection(document, content, "more", "更多选项", false);
+  const stylePanel = accordionSection(
+    document,
+    content,
+    "style",
+    "样式设置",
+    false,
+    `${styleNames[model.preferences.style]} · ${model.preferences.ratio === "16:9" ? "16:9" : "3:4"}`,
+  );
+  const morePanel = accordionSection(document, content, "more", "更多选项", false, moreSummary);
   const meta = document.createElement("p");
   meta.className = "ccg-editing-meta";
   meta.textContent = [model.source.authorName, model.source.publishedAt].filter(Boolean).join(" · ") || "B站评论";
@@ -154,21 +173,27 @@ function renderEditing(
   field.className = "ccg-comment-field";
   const fieldHeader = document.createElement("span");
   fieldHeader.textContent = "评论文字";
-  const restore = button(document, "恢复原文", "恢复");
+  const restore = button(document, "恢复原文", "恢复原文");
   restore.addEventListener("click", () => handlers.onRestoreOriginal?.());
   fieldHeader.append(restore);
   const textarea = document.createElement("textarea");
   textarea.setAttribute("aria-label", "评论文字");
   textarea.maxLength = 500;
-  textarea.value = model.draftContent ?? model.source.content;
+  const initialContent = model.draftContent ?? model.source.content;
+  textarea.value = initialContent;
   const validation = document.createElement("span");
   validation.className = "ccg-field-error";
   validation.setAttribute("role", "alert");
+  const count = document.createElement("span");
+  count.className = "ccg-character-count";
+  const updateCount = (): void => { count.textContent = `${textarea.value.length} / 500`; };
+  updateCount();
   textarea.addEventListener("input", () => {
     validation.textContent = "";
+    updateCount();
     handlers.onDraftChange?.(textarea.value);
   });
-  field.append(fieldHeader, textarea, validation);
+  field.append(fieldHeader, textarea, count, validation);
   contentPanel.append(meta, field);
 
   radioGroup<CardStyle>(document, stylePanel, "ccg-style", "卡片风格", [
@@ -196,9 +221,49 @@ function renderEditing(
     input.addEventListener("change", () => { if (input.checked) handlers.onPanelSkinChange?.(input.value as PanelSkin); });
   });
 
+  const styleSummary = content.querySelector<HTMLElement>('[data-accordion-summary="style"]');
+  const moreSummaryElement = content.querySelector<HTMLElement>('[data-accordion-summary="more"]');
+  const updateSummaries = (): void => {
+    const style = content.querySelector<HTMLInputElement>('input[name="ccg-style"]:checked')!;
+    const ratio = content.querySelector<HTMLInputElement>('input[name="ccg-ratio"]:checked')!;
+    const skin = content.querySelector<HTMLInputElement>('input[name="ccg-panel-skin"]:checked')!;
+    if (styleSummary) styleSummary.textContent = `${styleNames[style.value as CardStyle]} · ${ratio.value}`;
+    const enabledCount = [includeCover, includeAttributes, gameDecoration, soundEnabled].filter((input) => input.checked).length;
+    if (moreSummaryElement) {
+      moreSummaryElement.textContent = enabledCount > 0
+        ? `已选 ${enabledCount} 项`
+        : skin.value === "classic-dark" ? "经典深色" : "默认设置";
+    }
+  };
+  content.querySelectorAll<HTMLInputElement>('input[type="radio"], input[type="checkbox"]').forEach((input) => {
+    input.addEventListener("change", updateSummaries);
+  });
+
   const actions = document.createElement("footer");
   actions.className = "ccg-panel-actions";
   const reset = button(document, "重置卡片设置", "重置");
+  reset.addEventListener("click", () => {
+    textarea.value = initialContent;
+    validation.textContent = "";
+    updateCount();
+    handlers.onDraftChange?.(initialContent);
+    content.querySelectorAll<HTMLInputElement>('input[name="ccg-style"]').forEach((input) => {
+      input.checked = input.value === model.preferences.style;
+    });
+    content.querySelectorAll<HTMLInputElement>('input[name="ccg-ratio"]').forEach((input) => {
+      input.checked = input.value === (model.preferences.ratio === "16:9" ? "16:9" : "3:4");
+    });
+    includeCover.checked = Boolean(model.source.videoCoverUrl) && model.preferences.includeCover;
+    includeAttributes.checked = model.preferences.includeAttributes ?? false;
+    gameDecoration.checked = model.preferences.gameDecoration;
+    soundEnabled.checked = model.preferences.soundEnabled ?? false;
+    const initialSkin = model.preferences.panelSkin ?? "pixel";
+    content.querySelectorAll<HTMLInputElement>('input[name="ccg-panel-skin"]').forEach((input) => {
+      input.checked = input.value === initialSkin;
+    });
+    handlers.onPanelSkinChange?.(initialSkin);
+    updateSummaries();
+  });
   const generate = button(document, "制作卡片", "制作卡片");
   generate.addEventListener("click", () => {
     const edited = textarea.value.trim();
@@ -222,16 +287,22 @@ function renderEditing(
     );
   });
   actions.append(reset, generate);
-  content.append(actions);
+  actionArea.append(actions);
 }
 
-function appendStateContent(document: Document, viewport: HTMLElement, model: PanelViewModel, handlers: ExtensionPanelHandlers): void {
+function appendStateContent(
+  document: Document,
+  viewport: HTMLElement,
+  actionArea: HTMLElement,
+  model: PanelViewModel,
+  handlers: ExtensionPanelHandlers,
+): void {
   const content = document.createElement("section");
   content.className = `ccg-state-content ccg-state-content--${model.state}`;
   content.setAttribute("aria-label", stateLabels[model.state]);
 
   if (model.state === "editing") {
-    renderEditing(document, content, model, handlers);
+    renderEditing(document, content, actionArea, model, handlers);
   } else {
     const illustration = document.createElement("img");
     illustration.className = "ccg-state-illustration";
@@ -339,7 +410,7 @@ function appendStateContent(document: Document, viewport: HTMLElement, model: Pa
       actions.append(open, another);
     }
     if (actions.childElementCount === 1) actions.classList.add("ccg-panel-actions--single");
-    content.append(actions);
+    actionArea.append(actions);
   }
   viewport.append(content);
 }
@@ -372,11 +443,12 @@ export function createExtensionPanel(
   header.append(logo, title, close);
   panel.append(header);
 
-  appendStepper(document, panel, model.state);
   const viewport = document.createElement("div");
-  viewport.className = "ccg-state-viewport";
-  appendStateContent(document, viewport, model, handlers);
-  panel.append(viewport);
+  viewport.className = "ccg-state-viewport ccg-state-scroll";
+  const actionArea = document.createElement("div");
+  actionArea.className = "ccg-panel-action-area";
+  appendStateContent(document, viewport, actionArea, model, handlers);
+  panel.append(viewport, actionArea);
 
   const decoration = document.createElement("img");
   decoration.className = "ccg-bottom-decoration";

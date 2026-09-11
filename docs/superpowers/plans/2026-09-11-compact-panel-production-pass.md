@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将真实 B 站页面中的制作面板收敛为约 `336 × 600px`、信息密度更高且不与评论选择态冲突的生产级插件 UI。
+**Goal:** 将真实 B 站页面中的制作面板收敛为约 `336 × 570px`、信息密度更高且不与评论选择态冲突的生产级插件 UI。
 
 **Architecture:** 保留现有 `PanelState` 与 `OverlayRoot` 生命周期，以共享 Shell 的 Header、可滚动 StateViewport、固定 ActionArea、低权重 BottomDecoration 重新组织布局。Editing 状态继续使用原生表单；选择提示由 Overlay 根据 confirmation 可见性自动抑制，不修改评论命中与解析逻辑。
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 单 Panel 目标宽高为 `336 × min(600px, calc(100dvh - 32px))`，不得扩展为页面或侧边栏应用。
+- 单 Panel 目标宽高为 `336 × min(570px, calc(100dvh - 32px))`，比例约 `1:1.696`，不得扩展为页面或侧边栏应用。
 - 删除可见数字 Stepper，但保留五状态模型和状态专属文案。
 - Header 目标高度 `48px`；底部品牌层目标高度 `44px`。
 - 主操作区固定在 Shell 内，Accordion 内容单独滚动。
@@ -36,7 +36,7 @@
 - Preserves: `PanelState` and all existing Overlay events.
 - Produces: one `.ccg-panel-action-area` outside `.ccg-state-scroll`, with state content and actions rendered into separate targets.
 
-- [ ] Write failing tests asserting no `.ccg-stepper`, fixed Header/scroll/action/decor structure, selection prompt hidden while a Panel is open, and `336 × 600` geometry.
+- [ ] Write failing tests asserting no `.ccg-stepper`, fixed Header/scroll/action/decor structure, selection prompt hidden while a Panel is open, and `336 × 570` geometry.
 - [ ] Run focused Vitest and Playwright tests and verify failures describe the old shell.
 - [ ] Move state actions out of content, remove Stepper rendering, suppress prompt when `confirmation` exists, and implement compact geometry.
 - [ ] Run focused tests until green.

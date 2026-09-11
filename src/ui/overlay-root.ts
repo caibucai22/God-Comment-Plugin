@@ -21,6 +21,7 @@ export class OverlayRoot extends EventTarget {
   private generationBusy = false;
   private saveBusy = false;
   private panelState: PanelState = "editing";
+  private failureMessage: string | undefined;
   private previewUrl: string | undefined;
   private previewDimensions: string | undefined;
   private previewRatio: "3:4" | "16:9" | undefined;
@@ -59,6 +60,7 @@ export class OverlayRoot extends EventTarget {
     this.previewDimensions = undefined;
     this.previewRatio = undefined;
     this.savedDimensions = undefined;
+    this.failureMessage = undefined;
     this.status = null;
     this.render();
   }
@@ -69,6 +71,7 @@ export class OverlayRoot extends EventTarget {
     this.previewUrl = previewUrl;
     this.previewDimensions = dimensions;
     this.previewRatio = ratio;
+    this.failureMessage = undefined;
     this.status = null;
     this.render();
   }
@@ -76,7 +79,8 @@ export class OverlayRoot extends EventTarget {
   showFailed(message: string): void {
     if (this.destroyed || !this.confirmation) return;
     this.panelState = "failed";
-    this.status = { kind: "error", message };
+    this.failureMessage = message;
+    this.status = null;
     this.render();
   }
 
@@ -87,6 +91,7 @@ export class OverlayRoot extends EventTarget {
     this.previewDimensions = undefined;
     this.previewRatio = undefined;
     this.savedDimensions = dimensions;
+    this.failureMessage = undefined;
     this.status = null;
     this.render();
   }
@@ -128,6 +133,7 @@ export class OverlayRoot extends EventTarget {
     this.generationBusy = false;
     this.saveBusy = false;
     this.savedDimensions = undefined;
+    this.failureMessage = undefined;
     this.previewDimensions = undefined;
     this.previewRatio = undefined;
   }
@@ -136,13 +142,13 @@ export class OverlayRoot extends EventTarget {
     if (!this.root || this.destroyed) return;
 
     this.root.innerHTML = `<style>${overlayCss}</style><div class="ccg-ui">
-      <button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>流光卡片核</span></button>
-      ${this.active ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
+      ${this.confirmation ? "" : `<button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>流光卡片核</span></button>`}
+      ${this.active && !this.confirmation ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
       <div class="ccg-panel-slot"></div>
       ${this.status ? `<div class="ccg-status ccg-status--${this.status.kind}" role="status"><span></span>${this.status.action === "retry-download" ? `<button type="button" aria-label="再次下载">再次下载</button>` : ""}<button type="button" aria-label="关闭提示">×</button></div>` : ""}
     </div>`;
 
-    (this.root.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).addEventListener("click", () => {
+    this.root.querySelector('[aria-label="开启评论选择"]')?.addEventListener("click", () => {
       this.emit("toggle-selection");
     });
     this.root.querySelector('[aria-label="退出评论选择"]')?.addEventListener("click", () => this.emit("exit-selection"));
@@ -165,6 +171,7 @@ export class OverlayRoot extends EventTarget {
         source: confirmation.source,
         preferences: confirmation.preferences,
         draftContent: confirmation.source.content,
+        errorMessage: this.failureMessage,
         previewUrl: this.previewUrl,
         previewInfo: this.panelState === "generated" && this.previewDimensions
           ? {
