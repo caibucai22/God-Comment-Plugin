@@ -38,6 +38,7 @@ const illustrationAssetByState = {
 } as const;
 
 const panelLogoAsset = new URL("../assets/pixel-panel/generated/mascot-master.png", import.meta.url).href;
+const bottomGroundAsset = new URL("../assets/pixel-panel/generated/bottom-ground.png", import.meta.url).href;
 
 function button(document: Document, label: string, text: string): HTMLButtonElement {
   const element = document.createElement("button");
@@ -450,11 +451,20 @@ export function createExtensionPanel(
   appendStateContent(document, viewport, actionArea, model, handlers);
   panel.append(viewport, actionArea);
 
-  const decoration = document.createElement("img");
+  const decoration = document.createElement("div");
   decoration.className = "ccg-bottom-decoration";
-  decoration.src = bottomAssetByState[model.state];
-  decoration.alt = "";
-  decoration.dataset.pixelAsset = `bottom-${model.state}`;
+  decoration.setAttribute("aria-hidden", "true");
+  const ground = document.createElement("img");
+  ground.className = "ccg-bottom-decoration__ground";
+  ground.src = bottomGroundAsset;
+  ground.alt = "";
+  ground.dataset.pixelAsset = "bottom-ground";
+  const scene = document.createElement("img");
+  scene.className = "ccg-bottom-decoration__scene";
+  scene.src = bottomAssetByState[model.state];
+  scene.alt = "";
+  scene.dataset.pixelAsset = `bottom-${model.state}`;
+  decoration.append(ground, scene);
   panel.append(decoration);
   return panel;
 }

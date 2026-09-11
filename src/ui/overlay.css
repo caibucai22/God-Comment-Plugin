@@ -72,7 +72,9 @@ button { font: inherit; }
 .ccg-state-content--generating { padding-top: 20px !important; }
 .ccg-state-content--failed, .ccg-state-content--saved { padding-top: 14px !important; }
 .ccg-state-illustration { display: block; width: 124px; height: 92px; margin-bottom: 12px; object-fit: contain; image-rendering: pixelated; }
-.ccg-bottom-decoration { position: relative; z-index: 1; align-self: end; width: 100%; height: 44px; object-fit: contain; object-position: center bottom; image-rendering: pixelated; opacity: .76; pointer-events: none; }
+.ccg-bottom-decoration { position: relative; z-index: 1; align-self: end; width: 100%; height: 44px; overflow: hidden; opacity: .76; pointer-events: none; }
+.ccg-bottom-decoration__ground { position: absolute; right: 0; bottom: 0; left: 0; width: 100%; height: 18px; object-fit: cover; object-position: center bottom; image-rendering: pixelated; opacity: .55; }
+.ccg-bottom-decoration__scene { position: absolute; inset: 0; width: 100%; height: 44px; object-fit: contain; object-position: center bottom; image-rendering: pixelated; }
 .ccg-accordion { border-bottom: 1px solid var(--ccg-line); }
 .ccg-accordion__trigger { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 12px; color: var(--ccg-ink); border: 0; background: #fff; font-weight: 700; text-align: left; cursor: pointer; }
 .ccg-accordion__trigger::before { width: 7px; height: 7px; margin-right: 9px; border: 1px solid #fff; outline: 2px solid var(--ccg-pink); background: var(--ccg-pink); content: ""; }

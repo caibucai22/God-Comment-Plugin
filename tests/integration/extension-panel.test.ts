@@ -39,6 +39,8 @@ describe("ExtensionPanel shared shell", () => {
 
     expect(logo?.getAttribute("src")).toContain("mascot-master.png");
     expect(decoration?.getAttribute("src")).toContain(`bottom-${state}.png`);
+    expect(decoration?.closest(".ccg-bottom-decoration")).not.toBeNull();
+    expect(panel.querySelector('[data-pixel-asset="bottom-ground"]')).not.toBeNull();
     expect(panel.querySelector("[data-missing-asset]")).toBeNull();
   });
 
@@ -48,6 +50,15 @@ describe("ExtensionPanel shared shell", () => {
 
     expect(illustration?.getAttribute("src")).toContain(`state-${state}.png`);
     expect(illustration?.alt).toBe("");
+  });
+
+  it("reuses one ground asset across all panel states", () => {
+    const sources = states.map((state) =>
+      createExtensionPanel(document, model(state), {})
+        .querySelector<HTMLImageElement>('[data-pixel-asset="bottom-ground"]')?.src,
+    );
+
+    expect(new Set(sources).size).toBe(1);
   });
 
   it("renders the reference editing controls in three accordion sections", () => {

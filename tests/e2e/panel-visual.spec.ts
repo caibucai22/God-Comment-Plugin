@@ -16,6 +16,11 @@ test("renders one fixed-size extension panel for every state", async ({ page }) 
     expect(bounds?.height).toBe(570);
     await expect(panel.locator(".ccg-stepper")).toHaveCount(0);
     await expect(panel.locator(".ccg-panel-action-area")).toHaveCount(1);
+    const ground = panel.locator(".ccg-bottom-decoration__ground");
+    const groundBounds = await ground.boundingBox();
+    expect(groundBounds?.width).toBe(bounds!.width - 2);
+    expect(groundBounds?.height).toBe(18);
+    await expect(panel.locator(".ccg-bottom-decoration__scene")).toHaveCSS("object-fit", "contain");
     await expect(panel).not.toContainText("BETA");
     await expect(page.locator("[data-five-column-layout]")).toHaveCount(0);
   }
