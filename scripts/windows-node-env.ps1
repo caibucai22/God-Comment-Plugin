@@ -8,7 +8,13 @@ function Test-ValidWindowsRoot {
     }
 
     try {
-        return (Get-Item -LiteralPath $Path -Force -ErrorAction Stop).PSIsContainer
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (-not $item.PSIsContainer) {
+            return $false
+        }
+
+        $commandProcessor = Join-Path -Path $Path -ChildPath 'System32\cmd.exe'
+        return Test-ValidCommandProcessor -Path $commandProcessor
     }
     catch {
         return $false
@@ -31,7 +37,29 @@ function Test-ValidCommandProcessor {
     }
 }
 
+function Resolve-WindowsNodeEnvironmentRoot {
+    param(
+        [AllowNull()][string]$MachineRoot,
+        [AllowNull()][string]$SpecialFolderRoot,
+        [AllowNull()][string]$FallbackRoot
+    )
+
+    foreach ($candidate in @($MachineRoot, $SpecialFolderRoot, $FallbackRoot)) {
+        if (Test-ValidWindowsRoot -Path $candidate) {
+            return $candidate
+        }
+    }
+
+    throw 'Unable to resolve a valid Windows root for the current process.'
+}
+
 function Initialize-WindowsNodeEnvironment {
+    param(
+        [AllowNull()][string]$MachineRoot = [Environment]::GetEnvironmentVariable('SystemRoot', 'Machine'),
+        [AllowNull()][string]$SpecialFolderRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::Windows),
+        [AllowNull()][string]$FallbackRoot = 'C:\Windows'
+    )
+
     if (-not $IsWindows) {
         return
     }
@@ -52,22 +80,7 @@ function Initialize-WindowsNodeEnvironment {
 
     $selectedRoot = $processSystemRoot
     if ([string]::IsNullOrWhiteSpace($selectedRoot)) {
-        $rootCandidates = @(
-            [Environment]::GetEnvironmentVariable('SystemRoot', 'Machine'),
-            [Environment]::GetFolderPath([Environment+SpecialFolder]::Windows),
-            'C:\Windows'
-        )
-
-        foreach ($candidate in $rootCandidates) {
-            if (Test-ValidWindowsRoot -Path $candidate) {
-                $selectedRoot = $candidate
-                break
-            }
-        }
-    }
-
-    if (-not (Test-ValidWindowsRoot -Path $selectedRoot)) {
-        throw 'Unable to resolve a valid Windows root for the current process.'
+        $selectedRoot = Resolve-WindowsNodeEnvironmentRoot -MachineRoot $MachineRoot -SpecialFolderRoot $SpecialFolderRoot -FallbackRoot $FallbackRoot
     }
 
     $generatedComSpec = Join-Path -Path $selectedRoot -ChildPath 'System32\cmd.exe'
