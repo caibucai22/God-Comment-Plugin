@@ -135,8 +135,15 @@ async function inspectForbiddenSourceTokens(root, files) {
 }
 
 function isFetchExpression(expression) {
-  return ts.isIdentifier(expression) && expression.text === "fetch" ||
-    ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "globalThis" && expression.name.text === "fetch";
+  if (ts.isIdentifier(expression)) return expression.text === "fetch";
+  if (ts.isPropertyAccessExpression(expression)) {
+    return ts.isIdentifier(expression.expression) && ["globalThis", "window", "self"].includes(expression.expression.text) && expression.name.text === "fetch";
+  }
+  if (ts.isElementAccessExpression(expression)) {
+    return ts.isIdentifier(expression.expression) && ["globalThis", "window", "self"].includes(expression.expression.text) &&
+      ts.isStringLiteral(expression.argumentExpression) && expression.argumentExpression.text === "fetch";
+  }
+  return false;
 }
 
 function isAllowedRendererImageFetch(call, sourceFile, sourceRoot) {

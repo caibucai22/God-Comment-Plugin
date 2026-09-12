@@ -171,6 +171,17 @@ describe("auditProductionPackage", () => {
     await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
   });
 
+  it.each([
+    "window.fetch(collectorUrl)",
+    "self.fetch(collectorUrl)",
+    "window['fetch'](collectorUrl)",
+  ])("rejects a non-allowlisted source-level %s call", async (fetchCall) => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({ "content/collector.ts": `export const collect = (collectorUrl: string) => ${fetchCall};` });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
+  });
+
   it("rejects a Bilibili reply-add POST even from the image-loading allowlist file", async () => {
     const distDir = await createProductionDist();
     const sourceDir = await createSourceDirectory({
