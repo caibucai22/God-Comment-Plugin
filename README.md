@@ -29,7 +29,7 @@ git diff --check
 & .\scripts\run-release-gates.ps1
 ```
 
-该入口会先初始化当前 PowerShell 进程所需的 Windows 环境变量，再直接运行本地 Vitest、TypeScript、Vite、Playwright 与 Git 差异检查。每次都会在 `.superpowers/logs/` 创建唯一的运行日志，其中包含每一步的开始/通过/失败状态，以及各 native 子进程实时输出的 stdout 与 stderr。不能以 `npm` 作为这一步的替代：`npm` 也是由 Node 启动的包装器，若 Node 启动前缺少 `SystemRoot`、`WINDIR` 或 `ComSpec`，npm 无法先恢复这些 Windows 变量。
+该入口会先初始化当前 PowerShell 进程所需的 Windows 环境变量，再直接运行本地 Vitest、TypeScript、Vite、最终 production-package audit、Playwright 与 Git 差异检查。production-package audit 在 Vite 生产构建后、Playwright 临时 E2E 构建前执行，验证最终 `dist/manifest.json` 的 MV3、最小权限、B站视频页 match、无 `host_permissions`、content script 与必要像素素材非空，并拒绝项目自有的遥测或上传端点标记。每次都会在 `.superpowers/logs/` 创建唯一的运行日志，其中包含每一步的开始/通过/失败状态，以及各 native 子进程实时输出的 stdout 与 stderr。不能以 `npm` 作为这一步的替代：`npm` 也是由 Node 启动的包装器，若 Node 启动前缺少 `SystemRoot`、`WINDIR` 或 `ComSpec`，npm 无法先恢复这些 Windows 变量。
 
 `npm run test:e2e` 会先正常构建并核对生产 manifest，再生成只匹配 `http://127.0.0.1/*` 的临时 E2E 构建，将 `dist/` 作为 unpacked extension 加载进 persistent Chromium context。测试结束后会再次正常构建，使 `dist/manifest.json` 恢复为生产范围。E2E 使用 Playwright 的 `channel: "chromium"`（完整 bundled Chromium），不静默跳过缺失浏览器；如果浏览器未安装，命令会明确失败并提示执行上面的安装命令。
 

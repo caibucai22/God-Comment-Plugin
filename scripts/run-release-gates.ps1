@@ -75,6 +75,7 @@ function Invoke-ReleaseGates {
                 @{ Name = 'Vitest'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\vitest\vitest.mjs'), '--run') },
                 @{ Name = 'TypeScript'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\typescript\bin\tsc'), '--noEmit') },
                 @{ Name = 'Vite'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\vite\bin\vite.js'), 'build') },
+                @{ Name = 'Production package audit'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'scripts\audit-production-package.mjs')) },
                 @{ Name = 'Playwright'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\@playwright\test\cli.js'), 'test') }
             )
         }

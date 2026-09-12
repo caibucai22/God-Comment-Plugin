@@ -246,9 +246,11 @@ function Assert-ReleaseGateStructure {
         @{ Name = 'Vitest'; Path = 'node_modules\vitest\vitest.mjs'; Argument = '--run' },
         @{ Name = 'TypeScript'; Path = 'node_modules\typescript\bin\tsc'; Argument = '--noEmit' },
         @{ Name = 'Vite'; Path = 'node_modules\vite\bin\vite.js'; Argument = 'build' },
+        @{ Name = 'Production package audit'; Path = 'scripts\audit-production-package.mjs'; Argument = 'audit-production-package.mjs' },
         @{ Name = 'Playwright'; Path = 'node_modules\@playwright\test\cli.js'; Argument = 'test' }
     )
     $releaseSteps = @($invokeGate.FindAll({ param($node) $node -is [System.Management.Automation.Language.HashtableAst] }, $true))
+    $releaseStepByName = @{}
     foreach ($entrypoint in $entrypoints) {
         $step = $releaseSteps | Where-Object {
             $namePair = $_.KeyValuePairs | Where-Object { $_.Item1.Extent.Text -eq 'Name' } | Select-Object -First 1
@@ -262,7 +264,10 @@ function Assert-ReleaseGateStructure {
         $arguments = Get-HashtableValueText -Hashtable $step -Key 'ArgumentList'
         Assert-True -Condition ($arguments -match [regex]::Escape($entrypoint.Path)) -Message "$($entrypoint.Name) must target its local entrypoint."
         Assert-True -Condition ($arguments -match [regex]::Escape($entrypoint.Argument)) -Message "$($entrypoint.Name) must retain $($entrypoint.Argument)."
+        $releaseStepByName[$entrypoint.Name] = $step
     }
+    Assert-Precedes -Earlier $releaseStepByName['Vite'] -Later $releaseStepByName['Production package audit'] -Message 'Production package audit must run after Vite.'
+    Assert-Precedes -Earlier $releaseStepByName['Production package audit'] -Later $releaseStepByName['Playwright'] -Message 'Production package audit must run before Playwright.'
 
     $gitDiffCheck = Get-FirstCommand -Commands $commands -Predicate {
         param($command)
@@ -311,6 +316,10 @@ Assert-ReleaseGateStructure -ScriptText $gateText
 $wrongViteCaller = $gateText.Replace("Name = 'Vite'; FilePath = `$nodeExecutable", "Name = 'Vite'; FilePath = 'vite'")
 Assert-True -Condition ($wrongViteCaller -cne $gateText) -Message 'Vite caller mutation did not change the gate source.'
 Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongViteCaller } -ExpectedMessage 'Vite must be invoked by the resolved node.exe'
+
+$wrongAuditCaller = $gateText.Replace("Name = 'Production package audit'; FilePath = `$nodeExecutable", "Name = 'Production package audit'; FilePath = 'node'")
+Assert-True -Condition ($wrongAuditCaller -cne $gateText) -Message 'Production package audit caller mutation did not change the gate source.'
+Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongAuditCaller } -ExpectedMessage 'Production package audit must be invoked by the resolved node.exe'
 
 $missingExitBinding = $gateText.Replace('$exitCode = $LASTEXITCODE', '$exitCode = 0')
 Assert-True -Condition ($missingExitBinding -cne $gateText) -Message 'Exit-code mutation did not change the gate source.'
