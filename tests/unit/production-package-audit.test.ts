@@ -65,6 +65,18 @@ async function createCliWorkingDirectory(overrides: Parameters<typeof createProd
   return workingDirectory;
 }
 
+async function createSourceDirectory(files: Readonly<Record<string, string>>): Promise<string> {
+  const projectRoot = await mkdtemp(join(tmpdir(), "ccg-production-package-source-"));
+  temporaryDirectories.push(projectRoot);
+  const sourceDir = join(projectRoot, "src");
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const filePath = join(sourceDir, relativePath);
+    await mkdir(resolve(filePath, ".."), { recursive: true });
+    await writeFile(filePath, contents, "utf8");
+  }
+  return sourceDir;
+}
+
 describe("auditProductionPackage", () => {
   it("returns an immutable normalized audit for a valid production package", async () => {
     const validDist = await createProductionDist();
@@ -150,6 +162,31 @@ describe("auditProductionPackage", () => {
     const distDir = await createProductionDist({ contentScriptText });
 
     await expect(auditProductionPackage({ distDir })).resolves.toMatchObject({ forbiddenPatternFindings: [] });
+  });
+
+  it("rejects a dynamic collector fetch outside the image-loading allowlist", async () => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({ "content/collector.ts": "export const collect = (collectorUrl: string) => fetch(collectorUrl);" });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
+  });
+
+  it("rejects a Bilibili reply-add POST even from the image-loading allowlist file", async () => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({
+      "render/card-renderer.ts": "fetch('https://api.bilibili.com/x/v2/reply/add', { method: 'POST', body: 'reply=1' });",
+    });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
+  });
+
+  it("accepts an ordinary analytics-dashboard label and an allowlisted renderer image fetch", async () => {
+    const distDir = await createProductionDist({ contentScriptText: "const label = '/analytics-dashboard';" });
+    const sourceDir = await createSourceDirectory({
+      "render/card-renderer.ts": "const coverUrl = 'https://i0.hdslb.com/bfs/archive/cover.jpg'; fetch(coverUrl, { method: 'GET' });",
+    });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).resolves.toMatchObject({ forbiddenPatternFindings: [] });
   });
 
   it("prints exactly one JSON line from the successful CLI", async () => {

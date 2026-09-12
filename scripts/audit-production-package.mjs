@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, extname, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const REQUIRED_PERMISSIONS = Object.freeze(["storage", "downloads"]);
 const REQUIRED_MATCHES = Object.freeze([["https://www.bilibili.com/video/*"]]);
@@ -22,13 +23,14 @@ export const FORBIDDEN_PRODUCTION_SOURCE_TOKENS = Object.freeze([
   "navigator.sendBeacon",
   "XMLHttpRequest",
   "WebSocket",
-  "/telemetry",
-  "/analytics",
+  "/telemetry/",
+  "/analytics/",
   "/api/comment/upload",
   "ccg-telemetry-endpoint",
   "ccg-comment-upload-endpoint",
   "ccg-card-upload-endpoint",
 ]);
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function freeze(value) {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -123,28 +125,61 @@ async function inspectForbiddenSourceTokens(root, files) {
         findings.push(Object.freeze({ path: normalizePath(root, absolutePath), token }));
       }
     }
-    for (const request of text.matchAll(/\bfetch\s*\(\s*(['"`])([^'"`]+)\1/g)) {
-      const requestTarget = request[2];
-      if (!isAllowedPageAssetFetch(requestTarget)) {
-        findings.push(Object.freeze({ path: normalizePath(root, absolutePath), token: `fetch:${requestTarget}` }));
+    for (const request of text.matchAll(/https?:\/\/[^'"`\s)]+/g)) {
+      if (/(?:collector|telemetry|upload)\./i.test(request[0])) {
+        findings.push(Object.freeze({ path: normalizePath(root, absolutePath), token: `collector-endpoint:${request[0]}` }));
       }
     }
   }
   return findings;
 }
 
-function isAllowedPageAssetFetch(requestTarget) {
-  const normalizedTarget = requestTarget.trim();
-  if (normalizedTarget.startsWith("data:") || normalizedTarget.startsWith("blob:")) return true;
+function isFetchExpression(expression) {
+  return ts.isIdentifier(expression) && expression.text === "fetch" ||
+    ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "globalThis" && expression.name.text === "fetch";
+}
 
-  try {
-    const requestUrl = new URL(normalizedTarget);
-    return requestUrl.protocol === "https:" &&
-      (requestUrl.hostname === "bilibili.com" || requestUrl.hostname.endsWith(".bilibili.com") ||
-        requestUrl.hostname === "hdslb.com" || requestUrl.hostname.endsWith(".hdslb.com"));
-  } catch {
-    return false;
+function isAllowedRendererImageFetch(call, sourceFile, sourceRoot) {
+  if (normalizePath(sourceRoot, sourceFile.fileName) !== "render/card-renderer.ts" || call.arguments.length < 1 || call.arguments.length > 2) return false;
+  const target = call.arguments[0];
+  const targetName = ts.isIdentifier(target) ? target.text : ts.isPropertyAccessExpression(target) ? target.name.text : "";
+  if (!/(?:cover|image|asset)(?:Url)?$/i.test(targetName)) return false;
+  if (call.arguments.length === 1) return true;
+
+  const options = call.arguments[1];
+  if (!ts.isObjectLiteralExpression(options)) return false;
+  for (const property of options.properties) {
+    if (!ts.isPropertyAssignment(property) || !property.name) return false;
+    const name = property.name.getText(sourceFile).replace(/^['"]|['"]$/g, "");
+    if (name === "body" || name === "credentials" || name === "headers" || name === "keepalive") return false;
+    if (name === "method" && (!ts.isStringLiteral(property.initializer) || property.initializer.text.toUpperCase() !== "GET")) return false;
   }
+  return true;
+}
+
+async function inspectSourceNetworkCalls(sourceRoot) {
+  const findings = [];
+  const sourceFiles = await listFiles(sourceRoot);
+  for (const absolutePath of sourceFiles) {
+    if (![".ts", ".tsx", ".mts", ".cts"].includes(extname(absolutePath).toLowerCase())) continue;
+    const sourceText = await readFile(absolutePath, "utf8");
+    const sourceFile = ts.createSourceFile(absolutePath, sourceText, ts.ScriptTarget.Latest, true);
+    const visit = (node) => {
+      const path = `src/${normalizePath(sourceRoot, absolutePath)}`;
+      if (ts.isCallExpression(node) && isFetchExpression(node.expression) && !isAllowedRendererImageFetch(node, sourceFile, sourceRoot)) {
+        findings.push(Object.freeze({ path, token: "source-fetch" }));
+      }
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "sendBeacon" && node.expression.expression.getText(sourceFile) === "navigator") {
+        findings.push(Object.freeze({ path, token: "navigator.sendBeacon" }));
+      }
+      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && (node.expression.text === "XMLHttpRequest" || node.expression.text === "WebSocket")) {
+        findings.push(Object.freeze({ path, token: node.expression.text }));
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+  return findings;
 }
 
 function findAssetFamily(root, files, family) {
@@ -162,6 +197,8 @@ function findAssetFamily(root, files, family) {
  */
 export async function auditProductionPackage(options = {}) {
   const distDir = options.distDir ?? resolve(process.cwd(), "dist");
+  const projectRoot = options.projectRoot ?? PROJECT_ROOT;
+  const sourceDir = options.sourceDir ?? resolve(projectRoot, "src");
   const root = resolve(distDir);
   const manifestRecord = await readNonEmptyFile(root, "manifest.json", "manifest");
   let manifest;
@@ -199,6 +236,10 @@ export async function auditProductionPackage(options = {}) {
     return readNonEmptyFile(root, normalizedPath, "required pixel asset");
   }));
 
+  const sourceNetworkFindings = await inspectSourceNetworkCalls(resolve(sourceDir));
+  if (sourceNetworkFindings.length > 0) {
+    throw new Error(`source-level network call found: ${sourceNetworkFindings.map((finding) => `${finding.token} in ${finding.path}`).join(", ")}.`);
+  }
   const forbiddenPatternFindings = await inspectForbiddenSourceTokens(root, emittedFiles);
   if (forbiddenPatternFindings.length > 0) {
     throw new Error(`forbidden production network pattern found: ${forbiddenPatternFindings.map((finding) => `${finding.token} in ${finding.path}`).join(", ")}.`);

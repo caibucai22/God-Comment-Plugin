@@ -13,4 +13,4 @@ export interface ProductionPackageAuditResult {
 
 export const FORBIDDEN_PRODUCTION_SOURCE_TOKENS: readonly string[];
 
-export function auditProductionPackage(options?: { readonly distDir?: string }): Promise<ProductionPackageAuditResult>;
+export function auditProductionPackage(options?: { readonly distDir?: string; readonly sourceDir?: string; readonly projectRoot?: string }): Promise<ProductionPackageAuditResult>;
