@@ -65,6 +65,36 @@ function Set-ProcessEnvironmentValue {
     Set-Item -LiteralPath $environmentPath -Value $Value
 }
 
+function Get-FirstCommand {
+    param(
+        [System.Management.Automation.Language.CommandAst[]]$Commands,
+        [scriptblock]$Predicate,
+        [string]$Message
+    )
+
+    $matches = foreach ($candidate in $Commands) {
+        if (& $Predicate $candidate) {
+            $candidate
+        }
+    }
+    $match = $matches | Sort-Object { $_.Extent.StartOffset } | Select-Object -First 1
+    if ($null -eq $match) {
+        throw $Message
+    }
+
+    return $match
+}
+
+function Assert-Precedes {
+    param(
+        [System.Management.Automation.Language.Ast]$Earlier,
+        [System.Management.Automation.Language.Ast]$Later,
+        [string]$Message
+    )
+
+    Assert-True -Condition ($Earlier.Extent.StartOffset -lt $Later.Extent.StartOffset) -Message $Message
+}
+
 if (-not $IsWindows) {
     Write-Host 'SKIP: Windows-only environment initializer tests.'
     exit 0
@@ -147,3 +177,56 @@ finally {
         Set-ProcessEnvironmentValue -Name $name -Value $originalValues[$name]
     }
 }
+
+$gateScript = Join-Path -Path $projectRoot -ChildPath 'scripts\run-release-gates.ps1'
+if (-not (Test-Path -LiteralPath $gateScript -PathType Leaf)) {
+    throw "Production script is missing: $gateScript"
+}
+
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($gateScript, [ref]$tokens, [ref]$parseErrors)
+$parseErrorMessages = @($parseErrors | ForEach-Object { $_.Message })
+Assert-True -Condition ($parseErrorMessages.Count -eq 0) -Message "Gate script contains PowerShell parse errors: $($parseErrorMessages -join '; ')"
+
+$commands = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
+$environmentSource = Get-FirstCommand -Commands $commands -Predicate {
+    param($command)
+    $command.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot -and $command.Extent.Text -match 'windows-node-env\.ps1'
+} -Message 'Gate script must dot-source windows-node-env.ps1.'
+$initializer = Get-FirstCommand -Commands $commands -Predicate {
+    param($command)
+    $command.GetCommandName() -eq 'Initialize-WindowsNodeEnvironment'
+} -Message 'Gate script must invoke Initialize-WindowsNodeEnvironment.'
+$nodeResolution = Get-FirstCommand -Commands $commands -Predicate {
+    param($command)
+    $command.GetCommandName() -eq 'Get-Command' -and $command.Extent.Text -match 'node\.exe'
+} -Message 'Gate script must resolve node.exe through Get-Command.'
+
+Assert-Precedes -Earlier $environmentSource -Later $initializer -Message 'Environment initializer must run after the environment script is loaded.'
+Assert-Precedes -Earlier $initializer -Later $nodeResolution -Message 'Environment initialization must happen before resolving node.exe.'
+
+$entrypoints = @(
+    @{ Name = 'Vitest'; Path = 'node_modules\\vitest\\vitest.mjs'; Argument = '--run' },
+    @{ Name = 'TypeScript'; Path = 'node_modules\\typescript\\bin\\tsc'; Argument = '--noEmit' },
+    @{ Name = 'Vite'; Path = 'node_modules\\vite\\bin\\vite.js'; Argument = 'build' },
+    @{ Name = 'Playwright'; Path = 'node_modules\\@playwright\\test\\cli.js'; Argument = 'test' }
+)
+foreach ($entrypoint in $entrypoints) {
+    $invocation = Get-FirstCommand -Commands $commands -Predicate {
+        param($command)
+        $command.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Ampersand -and $command.Extent.Text -match $entrypoint.Path -and $command.Extent.Text -match [regex]::Escape($entrypoint.Argument)
+    } -Message "Gate script must directly invoke the local $($entrypoint.Name) entrypoint with $($entrypoint.Argument)."
+    Assert-Precedes -Earlier $nodeResolution -Later $invocation -Message "node.exe must be resolved before the local $($entrypoint.Name) entrypoint starts."
+}
+
+$gitDiffCheck = Get-FirstCommand -Commands $commands -Predicate {
+    param($command)
+    $command.GetCommandName() -eq 'git' -and $command.Extent.Text -match 'diff' -and $command.Extent.Text -match '--check' -and $command.Extent.Text -match 'master\.\.\.HEAD'
+} -Message 'Gate script must run git diff --check master...HEAD.'
+$lastExitCodeChecks = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.IfStatementAst] -and $node.Extent.Text -match '\$LASTEXITCODE' }, $true))
+Assert-True -Condition ($lastExitCodeChecks.Count -ge 5) -Message 'Gate script must check $LASTEXITCODE after every Node and git process.'
+Assert-Precedes -Earlier $gitDiffCheck -Later $lastExitCodeChecks[-1] -Message 'The git diff check must be followed by a $LASTEXITCODE check.'
+
+Write-Host 'PASS: gate script initializes Windows environment before resolving Node and running local release tools.'
+Write-Host 'PASS: gate script invokes all local release entrypoints and checks external-process exit codes.'

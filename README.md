@@ -23,6 +23,14 @@ npm run test:e2e
 git diff --check
 ```
 
+在 Windows/Codex 环境中，发布前请优先使用项目提供的完整验证入口：
+
+```powershell
+& .\scripts\run-release-gates.ps1
+```
+
+该入口会先初始化当前 PowerShell 进程所需的 Windows 环境变量，再直接运行本地 Vitest、TypeScript、Vite、Playwright 与 Git 差异检查；每次都会把输出写入 `.superpowers/logs/` 下唯一的 transcript。不能以 `npm` 作为这一步的替代：`npm` 也是由 Node 启动的包装器，若 Node 启动前缺少 `SystemRoot`、`WINDIR` 或 `ComSpec`，npm 无法先恢复这些 Windows 变量。
+
 `npm run test:e2e` 会先正常构建并核对生产 manifest，再生成只匹配 `http://127.0.0.1/*` 的临时 E2E 构建，将 `dist/` 作为 unpacked extension 加载进 persistent Chromium context。测试结束后会再次正常构建，使 `dist/manifest.json` 恢复为生产范围。E2E 使用 Playwright 的 `channel: "chromium"`（完整 bundled Chromium），不静默跳过缺失浏览器；如果浏览器未安装，命令会明确失败并提示执行上面的安装命令。
 
 自动化只访问动态端口上的本机 fixture，不依赖公网或真实哔哩哔哩页面。persistent profile、fixture server 与下载文件在每条测试后清理；共享扩展构建以单 worker 运行。E2E fixture 通过不等于真实 Bilibili 页面通过；实机验收必须用已加载 unpacked `dist` 的 Chrome，按 [Chrome MCP 真实浏览器检查清单](docs/testing/chrome-mcp-checklist.md) 留存脱敏证据。
