@@ -19,6 +19,12 @@ const REQUIRED_ASSET_FAMILIES = Object.freeze([
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 
 export const FORBIDDEN_PRODUCTION_SOURCE_TOKENS = Object.freeze([
+  "navigator.sendBeacon",
+  "XMLHttpRequest",
+  "WebSocket",
+  "/telemetry",
+  "/analytics",
+  "/api/comment/upload",
   "ccg-telemetry-endpoint",
   "ccg-comment-upload-endpoint",
   "ccg-card-upload-endpoint",
@@ -117,8 +123,28 @@ async function inspectForbiddenSourceTokens(root, files) {
         findings.push(Object.freeze({ path: normalizePath(root, absolutePath), token }));
       }
     }
+    for (const request of text.matchAll(/\bfetch\s*\(\s*(['"`])([^'"`]+)\1/g)) {
+      const requestTarget = request[2];
+      if (!isAllowedPageAssetFetch(requestTarget)) {
+        findings.push(Object.freeze({ path: normalizePath(root, absolutePath), token: `fetch:${requestTarget}` }));
+      }
+    }
   }
   return findings;
+}
+
+function isAllowedPageAssetFetch(requestTarget) {
+  const normalizedTarget = requestTarget.trim();
+  if (normalizedTarget.startsWith("data:") || normalizedTarget.startsWith("blob:")) return true;
+
+  try {
+    const requestUrl = new URL(normalizedTarget);
+    return requestUrl.protocol === "https:" &&
+      (requestUrl.hostname === "bilibili.com" || requestUrl.hostname.endsWith(".bilibili.com") ||
+        requestUrl.hostname === "hdslb.com" || requestUrl.hostname.endsWith(".hdslb.com"));
+  } catch {
+    return false;
+  }
 }
 
 function findAssetFamily(root, files, family) {
@@ -154,6 +180,12 @@ export async function auditProductionPackage(options = {}) {
     for (const scriptPath of contentScript.js) {
       contentScripts.push(await readNonEmptyFile(root, scriptPath, "content script"));
     }
+    if (contentScript.css !== undefined && !Array.isArray(contentScript.css)) {
+      throw new Error("content_scripts css entries must be arrays when declared.");
+    }
+    for (const stylesheetPath of contentScript.css ?? []) {
+      contentScripts.push(await readNonEmptyFile(root, stylesheetPath, "content stylesheet"));
+    }
   }
 
   const emittedFiles = await listFiles(root);
@@ -169,7 +201,7 @@ export async function auditProductionPackage(options = {}) {
 
   const forbiddenPatternFindings = await inspectForbiddenSourceTokens(root, emittedFiles);
   if (forbiddenPatternFindings.length > 0) {
-    throw new Error(`forbidden project-owned source token found: ${forbiddenPatternFindings.map((finding) => `${finding.token} in ${finding.path}`).join(", ")}.`);
+    throw new Error(`forbidden production network pattern found: ${forbiddenPatternFindings.map((finding) => `${finding.token} in ${finding.path}`).join(", ")}.`);
   }
 
   return freeze({

@@ -293,13 +293,13 @@ function Assert-ReleaseGateStructure {
         throw 'Release-step helper must bind $LASTEXITCODE immediately after its external process.'
     }
     Assert-Precedes -Earlier $processInvocation -Later $exitAssignment -Message '$LASTEXITCODE must be read after the external process.'
-    $interveningCommands = @($invokeStep.FindAll({
-        param($node)
-        $node -is [System.Management.Automation.Language.CommandAst] -and
-            $node.Extent.StartOffset -gt $processInvocation.Parent.Extent.EndOffset -and
-            $node.Extent.StartOffset -lt $exitAssignment.Extent.StartOffset
-    }, $true))
-    Assert-True -Condition ($interveningCommands.Count -eq 0) -Message '$LASTEXITCODE check must be adjacent to its external process invocation.'
+    $pipelineStatement = $processInvocation.Parent
+    $pipelineBlock = $pipelineStatement.Parent
+    Assert-True -Condition ($pipelineStatement -is [System.Management.Automation.Language.PipelineAst]) -Message 'Release-step helper must run the external process in a pipeline statement.'
+    Assert-True -Condition ($pipelineBlock -is [System.Management.Automation.Language.NamedBlockAst]) -Message 'Release-step helper pipeline must belong to a named block.'
+    $statementIndex = [array]::IndexOf($pipelineBlock.Statements, $pipelineStatement)
+    Assert-True -Condition ($statementIndex -ge 0 -and $statementIndex + 1 -lt $pipelineBlock.Statements.Count) -Message '$LASTEXITCODE check must immediately follow its external process statement.'
+    Assert-True -Condition ($pipelineBlock.Statements[$statementIndex + 1] -eq $exitAssignment) -Message '$LASTEXITCODE check must be adjacent to its external process invocation.'
 
     $exitFailure = $invokeStep.Find({
         param($node)
@@ -324,6 +324,10 @@ Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongAuditCalle
 $missingExitBinding = $gateText.Replace('$exitCode = $LASTEXITCODE', '$exitCode = 0')
 Assert-True -Condition ($missingExitBinding -cne $gateText) -Message 'Exit-code mutation did not change the gate source.'
 Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $missingExitBinding } -ExpectedMessage 'bind $LASTEXITCODE immediately'
+
+$interveningAssignment = $gateText.Replace('$exitCode = $LASTEXITCODE', "`$intermediate = 1`r`n    `$exitCode = `$LASTEXITCODE")
+Assert-True -Condition ($interveningAssignment -cne $gateText) -Message 'Intervening-assignment mutation did not change the gate source.'
+Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $interveningAssignment } -ExpectedMessage 'adjacent to its external process invocation'
 
 . $gateScript
 

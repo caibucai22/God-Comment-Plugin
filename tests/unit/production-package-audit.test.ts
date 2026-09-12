@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { auditProductionPackage, FORBIDDEN_PRODUCTION_SOURCE_TOKENS } from "../../scripts/audit-production-package.mjs";
+import { join, resolve } from "node:path";
+import { auditProductionPackage } from "../../scripts/audit-production-package.mjs";
 
 const temporaryDirectories: string[] = [];
 
@@ -12,6 +13,7 @@ afterEach(async () => {
 
 async function createProductionDist(overrides: {
   readonly contentScriptText?: string;
+  readonly contentScriptCssText?: string;
   readonly filesToOmit?: readonly string[];
   readonly manifest?: Record<string, unknown>;
 } = {}): Promise<string> {
@@ -27,6 +29,7 @@ async function createProductionDist(overrides: {
   };
   const files = [
     "assets/content.js",
+    "assets/content.css",
     "assets/mascot-master-example.png",
     "assets/bottom-ground-example.png",
     "assets/state-generating-example.png",
@@ -43,10 +46,23 @@ async function createProductionDist(overrides: {
   for (const relativePath of files) {
     if (overrides.filesToOmit?.includes(relativePath)) continue;
     const filePath = join(distDir, relativePath);
-    await writeFile(filePath, relativePath.endsWith(".js") ? overrides.contentScriptText ?? "console.log('extension content');" : "pixel", "utf8");
+    const contents = relativePath.endsWith(".js")
+      ? overrides.contentScriptText ?? "console.log('extension content');"
+      : relativePath.endsWith(".css")
+        ? overrides.contentScriptCssText ?? ".ccg-panel { color: #111; }"
+        : "pixel";
+    await writeFile(filePath, contents, "utf8");
   }
 
   return distDir;
+}
+
+async function createCliWorkingDirectory(overrides: Parameters<typeof createProductionDist>[0] = {}): Promise<string> {
+  const distDir = await createProductionDist(overrides);
+  const workingDirectory = await mkdtemp(join(tmpdir(), "ccg-production-package-audit-cli-"));
+  temporaryDirectories.push(workingDirectory);
+  await rename(distDir, join(workingDirectory, "dist"));
+  return workingDirectory;
 }
 
 describe("auditProductionPackage", () => {
@@ -97,15 +113,70 @@ describe("auditProductionPackage", () => {
     await expect(auditProductionPackage({ distDir: emptyDist })).rejects.toThrow("assets/content.js");
   });
 
+  it("rejects a missing or empty manifest-declared content stylesheet", async () => {
+    const styledManifest = { content_scripts: [{ matches: ["https://www.bilibili.com/video/*"], js: ["assets/content.js"], css: ["assets/content.css"] }] };
+    const missingDist = await createProductionDist({ manifest: styledManifest, filesToOmit: ["assets/content.css"] });
+    const emptyDist = await createProductionDist({ manifest: styledManifest, contentScriptCssText: "" });
+
+    await expect(auditProductionPackage({ distDir: missingDist })).rejects.toThrow("assets/content.css");
+    await expect(auditProductionPackage({ distDir: emptyDist })).rejects.toThrow("assets/content.css");
+  });
+
   it("rejects a missing required pixel-asset family", async () => {
     const distDir = await createProductionDist({ filesToOmit: ["assets/bottom-saved-example.png"] });
 
     await expect(auditProductionPackage({ distDir })).rejects.toThrow("bottom-saved");
   });
 
-  it("rejects an emitted telemetry or upload marker", async () => {
-    const distDir = await createProductionDist({ contentScriptText: `const endpoint = "${FORBIDDEN_PRODUCTION_SOURCE_TOKENS[0]}";` });
+  it.each([
+    ["navigator.sendBeacon", "navigator.sendBeacon('https://telemetry.example/collect', 'payload');"],
+    ["external fetch", "fetch('https://telemetry.example/collect');"],
+    ["XMLHttpRequest", "const request = new XMLHttpRequest(); request.open('POST', 'https://telemetry.example/collect');"],
+    ["WebSocket", "new WebSocket('wss://telemetry.example/socket');"],
+    ["telemetry endpoint", "const endpoint = 'https://api.example.com/telemetry/v1/events';"],
+    ["comment upload endpoint", "const endpoint = 'https://api.example.com/api/comment/upload';"],
+  ])("rejects the project-owned %s network sink or endpoint", async (_name, contentScriptText) => {
+    const distDir = await createProductionDist({ contentScriptText });
 
-    await expect(auditProductionPackage({ distDir })).rejects.toThrow("forbidden project-owned source token");
+    await expect(auditProductionPackage({ distDir })).rejects.toThrow("forbidden production network pattern");
+  });
+
+  it.each([
+    "fetch('https://i0.hdslb.com/bfs/archive/cover.jpg');",
+    "fetch('https://www.bilibili.com/images/cover.jpg');",
+    "fetch('data:image/png;base64,AAAA');",
+    "fetch('blob:https://www.bilibili.com/cover-artifact');",
+  ])("allows an expected page-asset fetch source: %s", async (contentScriptText) => {
+    const distDir = await createProductionDist({ contentScriptText });
+
+    await expect(auditProductionPackage({ distDir })).resolves.toMatchObject({ forbiddenPatternFindings: [] });
+  });
+
+  it("prints exactly one JSON line from the successful CLI", async () => {
+    const workingDirectory = await createCliWorkingDirectory();
+    const result = spawnSync(process.execPath, [resolve("scripts/audit-production-package.mjs")], { cwd: workingDirectory, encoding: "utf8", timeout: 10_000 });
+    const stdout = String(result.stdout);
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(stdout).toMatch(/^\{.*\}\r?\n$/);
+    expect(stdout.trimEnd().split(/\r?\n/)).toHaveLength(1);
+    expect(JSON.parse(stdout)).toMatchObject({ manifestVersion: 3, forbiddenPatternFindings: [] });
+  });
+
+  it("writes one concise error line and exits non-zero when the CLI audit fails", async () => {
+    const workingDirectory = await createCliWorkingDirectory({
+      manifest: { content_scripts: [{ matches: ["http://127.0.0.1/*"], js: ["assets/content.js"] }] },
+    });
+    const result = spawnSync(process.execPath, [resolve("scripts/audit-production-package.mjs")], { cwd: workingDirectory, encoding: "utf8", timeout: 10_000 });
+    const stderr = String(result.stderr);
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(stderr).toMatch(/^Production package audit failed: .+\r?\n$/);
+    expect(stderr.trimEnd().split(/\r?\n/)).toHaveLength(1);
+    expect(stderr.length).toBeLessThan(240);
   });
 });
