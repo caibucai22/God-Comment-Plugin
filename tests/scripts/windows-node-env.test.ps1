@@ -183,50 +183,186 @@ if (-not (Test-Path -LiteralPath $gateScript -PathType Leaf)) {
     throw "Production script is missing: $gateScript"
 }
 
-$tokens = $null
-$parseErrors = $null
-$ast = [System.Management.Automation.Language.Parser]::ParseFile($gateScript, [ref]$tokens, [ref]$parseErrors)
-$parseErrorMessages = @($parseErrors | ForEach-Object { $_.Message })
-Assert-True -Condition ($parseErrorMessages.Count -eq 0) -Message "Gate script contains PowerShell parse errors: $($parseErrorMessages -join '; ')"
+function Get-ReleaseGateFunction {
+    param(
+        [System.Management.Automation.Language.Ast]$Ast,
+        [string]$Name
+    )
 
-$commands = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
-$environmentSource = Get-FirstCommand -Commands $commands -Predicate {
-    param($command)
-    $command.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot -and $command.Extent.Text -match 'windows-node-env\.ps1'
-} -Message 'Gate script must dot-source windows-node-env.ps1.'
-$initializer = Get-FirstCommand -Commands $commands -Predicate {
-    param($command)
-    $command.GetCommandName() -eq 'Initialize-WindowsNodeEnvironment'
-} -Message 'Gate script must invoke Initialize-WindowsNodeEnvironment.'
-$nodeResolution = Get-FirstCommand -Commands $commands -Predicate {
-    param($command)
-    $command.GetCommandName() -eq 'Get-Command' -and $command.Extent.Text -match 'node\.exe'
-} -Message 'Gate script must resolve node.exe through Get-Command.'
+    $function = $Ast.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $Name
+    }, $true)
+    if ($null -eq $function) {
+        throw "Gate script must define $Name for controllable release-gate execution."
+    }
 
-Assert-Precedes -Earlier $environmentSource -Later $initializer -Message 'Environment initializer must run after the environment script is loaded.'
-Assert-Precedes -Earlier $initializer -Later $nodeResolution -Message 'Environment initialization must happen before resolving node.exe.'
-
-$entrypoints = @(
-    @{ Name = 'Vitest'; Path = 'node_modules\\vitest\\vitest.mjs'; Argument = '--run' },
-    @{ Name = 'TypeScript'; Path = 'node_modules\\typescript\\bin\\tsc'; Argument = '--noEmit' },
-    @{ Name = 'Vite'; Path = 'node_modules\\vite\\bin\\vite.js'; Argument = 'build' },
-    @{ Name = 'Playwright'; Path = 'node_modules\\@playwright\\test\\cli.js'; Argument = 'test' }
-)
-foreach ($entrypoint in $entrypoints) {
-    $invocation = Get-FirstCommand -Commands $commands -Predicate {
-        param($command)
-        $command.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Ampersand -and $command.Extent.Text -match $entrypoint.Path -and $command.Extent.Text -match [regex]::Escape($entrypoint.Argument)
-    } -Message "Gate script must directly invoke the local $($entrypoint.Name) entrypoint with $($entrypoint.Argument)."
-    Assert-Precedes -Earlier $nodeResolution -Later $invocation -Message "node.exe must be resolved before the local $($entrypoint.Name) entrypoint starts."
+    return $function
 }
 
-$gitDiffCheck = Get-FirstCommand -Commands $commands -Predicate {
-    param($command)
-    $command.GetCommandName() -eq 'git' -and $command.Extent.Text -match 'diff' -and $command.Extent.Text -match '--check' -and $command.Extent.Text -match 'master\.\.\.HEAD'
-} -Message 'Gate script must run git diff --check master...HEAD.'
-$lastExitCodeChecks = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.IfStatementAst] -and $node.Extent.Text -match '\$LASTEXITCODE' }, $true))
-Assert-True -Condition ($lastExitCodeChecks.Count -ge 5) -Message 'Gate script must check $LASTEXITCODE after every Node and git process.'
-Assert-Precedes -Earlier $gitDiffCheck -Later $lastExitCodeChecks[-1] -Message 'The git diff check must be followed by a $LASTEXITCODE check.'
+function Get-HashtableValueText {
+    param(
+        [System.Management.Automation.Language.HashtableAst]$Hashtable,
+        [string]$Key
+    )
 
-Write-Host 'PASS: gate script initializes Windows environment before resolving Node and running local release tools.'
-Write-Host 'PASS: gate script invokes all local release entrypoints and checks external-process exit codes.'
+    $pair = $Hashtable.KeyValuePairs | Where-Object { $_.Item1.Extent.Text -eq $Key } | Select-Object -First 1
+    if ($null -eq $pair) {
+        throw "Release step is missing the $Key field."
+    }
+
+    return $pair.Item2.Extent.Text
+}
+
+function Assert-ReleaseGateStructure {
+    param([string]$ScriptText)
+
+    $tokens = $null
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($ScriptText, [ref]$tokens, [ref]$parseErrors)
+    $parseErrorMessages = @($parseErrors | ForEach-Object { $_.Message })
+    Assert-True -Condition ($parseErrorMessages.Count -eq 0) -Message "Gate script contains PowerShell parse errors: $($parseErrorMessages -join '; ')"
+
+    $invokeGate = Get-ReleaseGateFunction -Ast $ast -Name 'Invoke-ReleaseGates'
+    $invokeStep = Get-ReleaseGateFunction -Ast $ast -Name 'Invoke-ReleaseGateStep'
+
+    $commands = @($invokeGate.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
+    $environmentSource = Get-FirstCommand -Commands $commands -Predicate {
+        param($command)
+        $command.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot -and $command.Extent.Text -match 'windows-node-env\.ps1'
+    } -Message 'Gate script must dot-source windows-node-env.ps1.'
+    $initializer = Get-FirstCommand -Commands $commands -Predicate {
+        param($command)
+        $command.GetCommandName() -eq 'Initialize-WindowsNodeEnvironment'
+    } -Message 'Gate script must invoke Initialize-WindowsNodeEnvironment.'
+    $nodeResolution = Get-FirstCommand -Commands $commands -Predicate {
+        param($command)
+        $command.GetCommandName() -eq 'Get-Command' -and $command.Extent.Text -match 'node\.exe'
+    } -Message 'Gate script must resolve node.exe through Get-Command.'
+    Assert-Precedes -Earlier $environmentSource -Later $initializer -Message 'Environment initialization script must be loaded before it is invoked.'
+    Assert-Precedes -Earlier $initializer -Later $nodeResolution -Message 'Environment initialization must happen before resolving node.exe.'
+
+    $entrypoints = @(
+        @{ Name = 'Vitest'; Path = 'node_modules\vitest\vitest.mjs'; Argument = '--run' },
+        @{ Name = 'TypeScript'; Path = 'node_modules\typescript\bin\tsc'; Argument = '--noEmit' },
+        @{ Name = 'Vite'; Path = 'node_modules\vite\bin\vite.js'; Argument = 'build' },
+        @{ Name = 'Playwright'; Path = 'node_modules\@playwright\test\cli.js'; Argument = 'test' }
+    )
+    $releaseSteps = @($invokeGate.FindAll({ param($node) $node -is [System.Management.Automation.Language.HashtableAst] }, $true))
+    foreach ($entrypoint in $entrypoints) {
+        $step = $releaseSteps | Where-Object {
+            $namePair = $_.KeyValuePairs | Where-Object { $_.Item1.Extent.Text -eq 'Name' } | Select-Object -First 1
+            $null -ne $namePair -and $namePair.Item2.Extent.Text.Trim("'") -ceq $entrypoint.Name
+        } | Select-Object -First 1
+        if ($null -eq $step) {
+            throw "Gate script must define the local $($entrypoint.Name) release step."
+        }
+
+        Assert-Equal -Actual (Get-HashtableValueText -Hashtable $step -Key 'FilePath') -Expected '$nodeExecutable' -Message "$($entrypoint.Name) must be invoked by the resolved node.exe."
+        $arguments = Get-HashtableValueText -Hashtable $step -Key 'ArgumentList'
+        Assert-True -Condition ($arguments -match [regex]::Escape($entrypoint.Path)) -Message "$($entrypoint.Name) must target its local entrypoint."
+        Assert-True -Condition ($arguments -match [regex]::Escape($entrypoint.Argument)) -Message "$($entrypoint.Name) must retain $($entrypoint.Argument)."
+    }
+
+    $gitDiffCheck = Get-FirstCommand -Commands $commands -Predicate {
+        param($command)
+        $command.GetCommandName() -eq 'Invoke-ReleaseGateStep' -and
+            $command.Extent.Text -match "Name 'Git diff check'" -and
+            $command.Extent.Text -match "FilePath 'git'" -and
+            $command.Extent.Text -match "master\.\.\.HEAD"
+    } -Message 'Gate script must run git diff --check master...HEAD through the checked release-step helper.'
+    Assert-Precedes -Earlier $nodeResolution -Later $gitDiffCheck -Message 'Git diff check must run after Node resolution and the Node release steps.'
+
+    $processInvocation = Get-FirstCommand -Commands @($invokeStep.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+            $node.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Ampersand -and
+            $node.Extent.Text -match '\$FilePath'
+    }, $true)) -Predicate { param($command) $true } -Message 'Release-step helper must invoke the supplied external file path.'
+    $exitAssignment = $invokeStep.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Extent.Text -match '^\s*\$exitCode\s*=\s*\$LASTEXITCODE\s*$'
+    }, $true)
+    if ($null -eq $exitAssignment) {
+        throw 'Release-step helper must bind $LASTEXITCODE immediately after its external process.'
+    }
+    Assert-Precedes -Earlier $processInvocation -Later $exitAssignment -Message '$LASTEXITCODE must be read after the external process.'
+    $interveningCommands = @($invokeStep.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.CommandAst] -and
+            $node.Extent.StartOffset -gt $processInvocation.Parent.Extent.EndOffset -and
+            $node.Extent.StartOffset -lt $exitAssignment.Extent.StartOffset
+    }, $true))
+    Assert-True -Condition ($interveningCommands.Count -eq 0) -Message '$LASTEXITCODE check must be adjacent to its external process invocation.'
+
+    $exitFailure = $invokeStep.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.IfStatementAst] -and $node.Extent.Text -match '\$exitCode\s*-ne\s*0'
+    }, $true)
+    if ($null -eq $exitFailure) {
+        throw 'Release-step helper must reject a non-zero bound exit code.'
+    }
+}
+
+$gateText = Get-Content -Raw -LiteralPath $gateScript
+Assert-ReleaseGateStructure -ScriptText $gateText
+
+$wrongViteCaller = $gateText.Replace("Name = 'Vite'; FilePath = `$nodeExecutable", "Name = 'Vite'; FilePath = 'vite'")
+Assert-True -Condition ($wrongViteCaller -cne $gateText) -Message 'Vite caller mutation did not change the gate source.'
+Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongViteCaller } -ExpectedMessage 'Vite must be invoked by the resolved node.exe'
+
+$missingExitBinding = $gateText.Replace('$exitCode = $LASTEXITCODE', '$exitCode = 0')
+Assert-True -Condition ($missingExitBinding -cne $gateText) -Message 'Exit-code mutation did not change the gate source.'
+Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $missingExitBinding } -ExpectedMessage 'bind $LASTEXITCODE immediately'
+
+. $gateScript
+
+$gateEnvironmentOriginal = @{}
+foreach ($name in $variableNames) {
+    $gateEnvironmentOriginal[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
+$callerLocation = (Get-Location).Path
+$gateLogDirectory = Join-Path -Path $projectRoot -ChildPath '.superpowers\logs'
+
+try {
+    Initialize-WindowsNodeEnvironment
+    $nodeExecutable = (Get-Command -Name 'node.exe' -CommandType Application -ErrorAction Stop).Path
+    $successfulChild = @{
+        Name = 'controlled child'
+        FilePath = $nodeExecutable
+        ArgumentList = @('-e', "console.log('CONTROLLED_STDOUT'); console.error('CONTROLLED_STDERR')")
+    }
+    $successfulResult = Invoke-ReleaseGates -Steps @($successfulChild) -LogDirectory $gateLogDirectory -SkipGitDiffCheck
+    $successfulLog = Get-Content -Raw -LiteralPath $successfulResult.LogPath
+    Assert-True -Condition $successfulLog.Contains('CONTROLLED_STDOUT') -Message 'Release log must contain native child stdout.'
+    Assert-True -Condition $successfulLog.Contains('CONTROLLED_STDERR') -Message 'Release log must contain native child stderr.'
+    Assert-True -Condition $successfulLog.Contains('START: controlled child') -Message 'Release log must contain the child start status.'
+    Assert-True -Condition $successfulLog.Contains('PASS: controlled child') -Message 'Release log must contain the child pass status.'
+
+    $failingChild = @{
+        Name = 'controlled failing child'
+        FilePath = $nodeExecutable
+        ArgumentList = @('-e', "console.error('CONTROLLED_FAILURE'); process.exit(23)")
+    }
+    $observedFailure = $null
+    try {
+        Invoke-ReleaseGates -Steps @($failingChild) -LogDirectory $gateLogDirectory -SkipGitDiffCheck -LogFinalizer {
+            param($LogPath)
+            throw 'simulated log finalization failure'
+        }
+    }
+    catch {
+        $observedFailure = $_.Exception.Message
+    }
+
+    Assert-True -Condition ($observedFailure -match 'controlled failing child release gate failed with exit code 23') -Message "Log-finalization failure must not hide the original gate failure, got '$observedFailure'."
+    Assert-Equal -Actual (Get-Location).Path -Expected $callerLocation -Message 'The caller working directory must be restored when log finalization fails.'
+    Write-Host 'PASS: release logs contain native stdout, stderr, and per-step statuses.'
+    Write-Host 'PASS: log finalization failure preserves the gate error and restores the caller directory.'
+}
+finally {
+    foreach ($name in $variableNames) {
+        Set-ProcessEnvironmentValue -Name $name -Value $gateEnvironmentOriginal[$name]
+    }
+}
