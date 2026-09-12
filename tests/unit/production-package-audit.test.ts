@@ -182,6 +182,31 @@ describe("auditProductionPackage", () => {
     await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
   });
 
+  it.each([
+    ["a no-substitution template key", "export const collect = (url: string) => window[`fetch`](url);"],
+    ["an identifier key", "const method = 'fetch'; export const collect = (url: string) => window[method](url);"],
+    ["a computed concatenated key", "export const collect = (url: string) => self['fe' + 'tch'](url);"],
+  ])("rejects a non-allowlisted global network call using %s", async (_name, sourceText) => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({ "content/collector.ts": sourceText });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
+  });
+
+  it("allows non-call global properties and explicitly safe static global methods", async () => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({
+      "content/window-state.ts": [
+        "export const currentLocation = window.location;",
+        "export const directTag = window.toString();",
+        "export const staticTag = window['toString']();",
+        "export const templateTag = self[`toString`]();",
+      ].join("\n"),
+    });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).resolves.toMatchObject({ forbiddenPatternFindings: [] });
+  });
+
   it("rejects a Bilibili reply-add POST even from the image-loading allowlist file", async () => {
     const distDir = await createProductionDist();
     const sourceDir = await createSourceDirectory({

@@ -18,6 +18,8 @@ const REQUIRED_ASSET_FAMILIES = Object.freeze([
   "bottom-saved",
 ]);
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
+const SOURCE_GLOBAL_NAMES = new Set(["globalThis", "window", "self"]);
+const SAFE_GLOBAL_ELEMENT_CALL_NAMES = new Set(["toString"]);
 
 export const FORBIDDEN_PRODUCTION_SOURCE_TOKENS = Object.freeze([
   "navigator.sendBeacon",
@@ -134,16 +136,29 @@ async function inspectForbiddenSourceTokens(root, files) {
   return findings;
 }
 
+function isSourceGlobalExpression(expression) {
+  return ts.isIdentifier(expression) && SOURCE_GLOBAL_NAMES.has(expression.text);
+}
+
+function isStringLiteralLike(expression) {
+  return ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression);
+}
+
 function isFetchExpression(expression) {
   if (ts.isIdentifier(expression)) return expression.text === "fetch";
   if (ts.isPropertyAccessExpression(expression)) {
-    return ts.isIdentifier(expression.expression) && ["globalThis", "window", "self"].includes(expression.expression.text) && expression.name.text === "fetch";
+    return isSourceGlobalExpression(expression.expression) && expression.name.text === "fetch";
   }
   if (ts.isElementAccessExpression(expression)) {
-    return ts.isIdentifier(expression.expression) && ["globalThis", "window", "self"].includes(expression.expression.text) &&
-      ts.isStringLiteral(expression.argumentExpression) && expression.argumentExpression.text === "fetch";
+    return isSourceGlobalExpression(expression.expression) && isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "fetch";
   }
   return false;
+}
+
+function isForbiddenDynamicGlobalCall(expression) {
+  if (!ts.isElementAccessExpression(expression) || !isSourceGlobalExpression(expression.expression)) return false;
+  if (!isStringLiteralLike(expression.argumentExpression)) return true;
+  return expression.argumentExpression.text !== "fetch" && !SAFE_GLOBAL_ELEMENT_CALL_NAMES.has(expression.argumentExpression.text);
 }
 
 function isAllowedRendererImageFetch(call, sourceFile, sourceRoot) {
@@ -175,6 +190,9 @@ async function inspectSourceNetworkCalls(sourceRoot) {
       const path = `src/${normalizePath(sourceRoot, absolutePath)}`;
       if (ts.isCallExpression(node) && isFetchExpression(node.expression) && !isAllowedRendererImageFetch(node, sourceFile, sourceRoot)) {
         findings.push(Object.freeze({ path, token: "source-fetch" }));
+      }
+      if (ts.isCallExpression(node) && isForbiddenDynamicGlobalCall(node.expression)) {
+        findings.push(Object.freeze({ path, token: "source-dynamic-global-call" }));
       }
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "sendBeacon" && node.expression.expression.getText(sourceFile) === "navigator") {
         findings.push(Object.freeze({ path, token: "navigator.sendBeacon" }));
