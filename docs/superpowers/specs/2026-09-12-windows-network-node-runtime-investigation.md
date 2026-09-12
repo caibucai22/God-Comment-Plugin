@@ -1,8 +1,12 @@
 # Windows 网络与 Node 运行时异常调研 Spec
 
 日期：2026-09-12
-状态：调研完成，修复方案待确认
+状态：调研完成；项目级修复已实施；Node 24 安装暂缓
 范围：当前 Codex PowerShell 子进程、NVM、Node.js 与本机代理 `127.0.0.1:7897`
+
+> 后续实施和 Node 22 复测结论见：
+> [`2026-09-12-node22-runtime-remediation-result.md`](./2026-09-12-node22-runtime-remediation-result.md)。
+> 当前决策是保留并继续使用 Node 22.22.2，不再把 Node 24 安装作为本轮完成条件。
 
 ## 1. 调研目标
 
