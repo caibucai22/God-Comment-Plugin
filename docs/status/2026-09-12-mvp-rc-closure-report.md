@@ -4,7 +4,7 @@
 
 ## 结论
 
-**CONDITIONAL PASS**。final review 的 7 个 Important 与 README Minor 已在产品提交 `e3f9c761e0cae79206769b15d36b4c6f2e3c08f0` 关闭，fresh Gate A、B 均通过，既有 Gate C 证据仍有效，当前开放 P0/P1 为 0。Gate D 只继承了具名的历史真实 B站主流程与 editing 截图证据；本轮没有可调用 Chrome MCP，未执行新的真实页面会话。入口唯一性、回复卡片内容边界、五状态逐态、正文修改/恢复原文、样式/更多摘要一致、9:16/16:9、确认前下载、125% 缩放、关闭恢复和隐私等真实站点项目仍为 `NOT RUN`。依据 [RC Spec](../superpowers/specs/2026-09-12-mvp-release-candidate-closure-design.md) 的判定规则，结论不得高于 `CONDITIONAL PASS`。
+**PASS**。final review 的 7 个 Important 与 README Minor 已在产品提交 `e3f9c761e0cae79206769b15d36b4c6f2e3c08f0` 关闭，Gate A、B、C 已通过；2026-09-13 用户使用 production `dist` 在真实 B站完成人工接管，Gate D 12 项通过，当前开放 P0/P1 为 0。原始人工记录与截图保存在 `C:\Users\001\Pictures\caima\comment-card\manual-test\`，未加入 Git。依据 [RC Spec](../superpowers/specs/2026-09-12-mvp-release-candidate-closure-design.md) 的判定规则，MVP RC 升级为 `PASS`。
 
 ## 环境与可追溯性
 
@@ -14,7 +14,7 @@
 | 工作目录 | `E:\03-Projects\AiProjects\CommentCardGen-Codex\.worktrees\pixel-perfect-panel-state-machine` |
 | 平台 | Windows native / PowerShell 7.6.6 |
 | Node | `v22.22.2`，仅通过 `scripts/windows-node-env.ps1` 初始化 |
-| 最终受保护门禁日志 | `.superpowers/logs/release-gates_执行命令说明_20260913_152033_211_57d7c4a6a6fa4a5c83c516759379f9c3.log` |
+| 最终受保护门禁日志 | `.superpowers/logs/release-gates_执行命令说明_20260913_220043_999_58a5c1d1c85b468180b01ec6ccbf0c3b.log` |
 | 五态视觉运行日志 | `.superpowers/logs/task-4_visual-qa_执行命令说明_20260913_105656_186_ce0ec85ee1144ff5a91327c81af5afa8.log` |
 | 五态 fixture artifact | `.superpowers/visual-qa/round-mvp-rc-20260913_105656_186-bc892c77b93e4ba48bb61c9322c291fd/` |
 
@@ -69,23 +69,22 @@ Gate B 覆盖的 fixture 行为包括五态几何与语义、3:4/9:16/16:9 PNG I
 
 ## Gate D — Real Bilibili Acceptance
 
-真实站点与 fixture 证据严格分离。本轮无 callable Chrome MCP，以下仅继承来源明确的既有记录：
+真实站点与 fixture 证据严格分离。本轮由用户人工接管真实 Chrome/B站，原始报告与截图位于 `C:\Users\001\Pictures\caima\comment-card\manual-test\`：
 
 | 真实项目 | 状态 | 具名来源 / 边界 |
 | --- | --- | --- |
-| 入口可见且可用 | `PASS`（继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`；本轮未复测 |
-| 入口唯一性 | `NOT RUN` | 历史具名证据未单独覆盖；无当前 Chrome MCP 会话 |
-| 顶层评论、默认已展示回复可识别/可选择 | `PASS`（继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`；本轮未复测 |
-| 默认已展示回复的卡片只含该回复自身作者、正文和时间 | `NOT RUN`（真实站点） | fixture 自动化 `PASS`：`tests/e2e/selection-flow.spec.ts` 的真实结构回复断言；无当前真实 B站证据 |
-| 动画连续、滚动目标更新、生成与本地保存 | `PASS`（继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`；本轮未复测 |
-| editing Panel、固定操作区、共享草地、场景比例、无底部遮挡 | `PASS`（继承） | `.superpowers/status/manual-acceptance_执行命令说明_20260912.md`；仅 editing 截图 |
-| generating、failed、generated、saved 的真实逐态 | `NOT RUN` | 无当前 Chrome MCP 会话 |
-| 评论正文修改并恢复原文（Spec 第 8 节第 5 项） | `NOT RUN` | 无当前 Chrome MCP 会话 |
-| 样式摘要和更多选项摘要与实际选择一致（Spec 第 8 节第 6 项） | `NOT RUN` | 无当前 Chrome MCP 会话 |
-| 真实 9:16 与 16:9 下载及精确尺寸 | `NOT RUN` | 无当前 Chrome MCP 会话 |
-| generated 前不下载、确认后一次下载 | `NOT RUN` | 无当前 Chrome MCP 会话 |
-| 五种退出、Panel 关闭后页面交互恢复 | `NOT RUN` | 无当前 Chrome MCP 会话 |
-| 125% 缩放、reduced motion、扩展 console、隐私证据 | `NOT RUN` | 无当前 Chrome MCP 会话 |
+| 入口唯一、可见且可用 | `PASS` | 真实截图与人工操作 |
+| 顶层评论、默认已展示回复可独立选择且内容边界正确 | `PASS` | 人工逐项确认作者、正文和时间属于所选回复 |
+| 动画连续、滚动目标更新 | `PASS` | 人工报告 |
+| 正文修改/恢复、样式与更多摘要一致 | `PASS` | 人工报告 |
+| 3:4、9:16、横版 16:9 与 PNG 保存 | `PASS` | 三种比例截图及人工操作；16:9 宽大于高 |
+| 属性开关、最大值强调、无空占位 | `PASS` | 人工报告 |
+| bilibili 标识、视频标题与长标题单行省略 | `PASS` | 人工报告；用户补充确认真正超长标题省略正常 |
+| generated 前不下载、确认后一次下载 | `PASS` | 人工报告 |
+| Escape、右键、空白、入口 toggle、提示按钮五种退出 | `PASS` | 原始报告及用户后续补充确认 |
+| Panel 关闭后页面原生交互恢复 | `PASS` | 人工报告 |
+| 125% 缩放下 Panel、底部操作区与装饰完整 | `PASS` | 真实截图与人工操作 |
+| 页面 console 无扩展错误 | `PASS` | 人工报告 |
 
 未执行项和下一次复测步骤见 [手工检查清单](../manual-test-checklist.md) 与 [Chrome MCP 清单](../testing/chrome-mcp-checklist.md)。历史真实 `PASS` 绝不扩展到未被原始来源命名的项目。
 
@@ -102,4 +101,4 @@ Gate B 覆盖的 fixture 行为包括五态几何与语义、3:4/9:16/16:9 PNG I
 
 - 最终 protected gate 通过，日志和截图位于 `.superpowers/`，该目录由 Git 忽略；文档没有复制忽略日志内容。
 - 提交前 `git diff --check` 通过；未将浏览器 profile、下载 PNG、真实站点个人数据或日志加入 Git。
-- 允许的下一步是使用具备 Chrome MCP 的控制器按两份清单补全 Gate D。补全 12 项且无 P0/P1 后，才可重新评估为 `PASS`。
+- Gate D 已由用户人工接管补齐且无 P0/P1。下一步是在当前文档变更上运行一次 fresh protected release gate；通过后提供 `master...HEAD` 合并预览，由用户决定是否本地合并。
