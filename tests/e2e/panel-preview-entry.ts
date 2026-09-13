@@ -65,7 +65,14 @@ function render(): void {
     onClose: () => host.setAttribute("hidden", ""),
     onDraftChange: (content) => { draftContent = content; },
     onRestoreOriginal: () => { draftContent = source.content; render(); },
-    onPanelSkinChange: (panelSkin) => { preferences = { ...preferences, panelSkin }; },
+    onPanelSkinChange: (panelSkin) => {
+      preferences = { ...preferences, panelSkin };
+      const panel = root.querySelector(".ccg-extension-panel");
+      if (panel instanceof HTMLElement) {
+        panel.dataset.panelSkin = panelSkin;
+        panel.classList.toggle("ccg-extension-panel--classic-dark", panelSkin === "classic-dark");
+      }
+    },
     onGenerate: () => { state = "generating"; render(); },
     onCancelGeneration: () => { state = "editing"; render(); },
     onRetryGeneration: () => { state = "generating"; render(); },

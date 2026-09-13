@@ -175,7 +175,7 @@ describe("content application composition", () => {
   });
 
   async function makeRealDomHarness(
-    overrides: Partial<Pick<ContentAppDependencies, "renderCard" | "exportPng" | "createPngArtifact" | "downloadPngArtifact">> = {},
+    overrides: Partial<ContentAppDependencies> = {},
   ) {
     document.body.innerHTML = '<div data-real-comment>真实评论节点</div>';
     const comment = document.querySelector("[data-real-comment]") as HTMLElement;
@@ -215,7 +215,7 @@ describe("content application composition", () => {
         return controller;
       },
       loadPreferences: async () => preferences,
-      savePreferences: async (input) => input,
+      savePreferences: overrides.savePreferences ?? (async (input) => input),
       generateAttributes: () => attributes,
       renderCard: overrides.renderCard ?? (async () => ({
         canvas: document.createElement("canvas"),
@@ -224,6 +224,7 @@ describe("content application composition", () => {
       exportPng: overrides.exportPng ?? (async () => undefined),
       createPngArtifact: overrides.createPngArtifact,
       downloadPngArtifact: overrides.downloadPngArtifact,
+      playGenerationSound: overrides.playGenerationSound,
       createFilename: () => "card.png",
     });
     if (!app || !overlay || !controller) throw new Error("real content app did not initialize");
@@ -304,7 +305,7 @@ describe("content application composition", () => {
     expect(harness.states.at(-1)?.reason).toBe("hint");
   });
 
-  it("keeps real selection active when confirmation is cancelled inside the overlay", async () => {
+  it("exits selection on panel close and restores native comment click and contextmenu handling", async () => {
     const harness = await makeRealDomHarness();
     (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
     harness.comment.click();
@@ -312,8 +313,27 @@ describe("content application composition", () => {
 
     (harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).click();
 
-    expect(harness.controller.active).toBe(true);
+    expect(harness.controller.active).toBe(false);
+    expect(harness.states.at(-1)?.reason).toBe("panel-close");
     expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).toBeNull();
+
+    const nativeEvents: string[] = [];
+    harness.comment.addEventListener("click", () => nativeEvents.push("click"));
+    harness.comment.addEventListener("contextmenu", () => nativeEvents.push("contextmenu"));
+    const click = new MouseEvent("click", { bubbles: true, composed: true, cancelable: true });
+    const contextmenu = new MouseEvent("contextmenu", { bubbles: true, composed: true, cancelable: true });
+    harness.comment.dispatchEvent(click);
+    harness.comment.dispatchEvent(contextmenu);
+
+    expect(click.defaultPrevented).toBe(false);
+    expect(contextmenu.defaultPrevented).toBe(false);
+    expect(nativeEvents).toEqual(["click", "contextmenu"]);
+    expect(harness.overlay.shadowRoot!.querySelector(".ccg-extension-panel")).toBeNull();
+
+    const stateCount = harness.states.length;
+    harness.app.destroy();
+    harness.app.destroy();
+    expect(harness.states).toHaveLength(stateCount);
   });
 
   it("does not consume a context menu opened inside the real overlay", async () => {
@@ -538,7 +558,7 @@ describe("content application composition", () => {
     expect(harness.overlay.shadowRoot!.textContent).toContain("卡片生成失败");
   });
 
-  it("shows the already-extracted source with current preferences and cancel preserves active selection", async () => {
+  it("shows the already-extracted source with current preferences and panel close exits selection", async () => {
     const harness = makeHarness();
     await createContentApp(harness.dependencies);
     harness.overlay.emit("toggle-selection");
@@ -547,9 +567,9 @@ describe("content application composition", () => {
     harness.overlay.emit("cancel-generate");
 
     expect(harness.overlay.confirmations).toEqual([{ source, preferences }]);
-    expect(harness.controller.active).toBe(true);
-    expect(harness.controller.exits).toEqual([]);
-    expect(harness.overlay.selectionStates.at(-1)).toBe(true);
+    expect(harness.controller.active).toBe(false);
+    expect(harness.controller.exits).toEqual(["panel-close"]);
+    expect(harness.overlay.selectionStates.at(-1)).toBe(false);
   });
 
   it("saves production preferences then generates, renders, exports, completes, and exits", async () => {
@@ -582,12 +602,13 @@ describe("content application composition", () => {
     await settle();
 
     expect(order).toEqual(["save", "attributes", "render", "export"]);
-    const exactOptions = { ...generatedOptions, includeAttributes: false, soundEnabled: false };
+    const exactOptions = { ...generatedOptions, includeAttributes: false, soundEnabled: false, panelSkin: "pixel" };
     expect(saved).toEqual([exactOptions]);
     expect(Object.keys(saved[0]).sort()).toEqual([
       "gameDecoration",
       "includeAttributes",
       "includeCover",
+      "panelSkin",
       "ratio",
       "soundEnabled",
       "style",
@@ -600,6 +621,86 @@ describe("content application composition", () => {
     expect(harness.overlay.statuses.at(-1)).toEqual({ kind: "success", message: "卡片已保存" });
     expect(harness.controller.exits).toEqual(["toggle"]);
     expect(harness.overlay.busyStates).toEqual([true, false]);
+  });
+
+  it("preserves an adapter video title through confirmation and card rendering", async () => {
+    const titledSource = { ...source, videoTitle: "来自 B站页面的真实视频标题" };
+    const renderCard = vi.fn(async () => ({ canvas: document.createElement("canvas"), coverFallbackUsed: false }));
+    const harness = makeHarness({ renderCard });
+    await createContentApp(harness.dependencies);
+    harness.overlay.emit("toggle-selection");
+
+    harness.controller.select(titledSource);
+    harness.overlay.emit("confirm-generate", { source: titledSource, options: generatedOptions });
+    await settle();
+
+    expect(harness.overlay.confirmations).toEqual([{ source: titledSource, preferences }]);
+    expect(renderCard).toHaveBeenCalledWith(expect.objectContaining({ source: titledSource }));
+  });
+
+  it("plays enabled generation sound exactly once under reduced motion and persists every exact preference", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    const playGenerationSound = vi.fn();
+    const savePreferences = vi.fn(async (input: CardPreferences) => input);
+    const renderCard = vi.fn(async () => ({ canvas: document.createElement("canvas"), coverFallbackUsed: false }));
+    const harness = await makeRealDomHarness({ playGenerationSound, savePreferences, renderCard });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="更多选项设置"]') as HTMLButtonElement).click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="播放制作声效"]') as HTMLInputElement).click();
+    (harness.overlay.shadowRoot!.querySelector('input[name="ccg-panel-skin"][value="classic-dark"]') as HTMLInputElement).click();
+    const generate = harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement;
+
+    generate.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    generate.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await settle();
+
+    const exactPreferences: CardPreferences = {
+      style: "history",
+      ratio: "9:16",
+      includeCover: true,
+      includeAttributes: false,
+      gameDecoration: false,
+      soundEnabled: true,
+      panelSkin: "classic-dark",
+    };
+    expect(playGenerationSound).toHaveBeenCalledOnce();
+    expect(savePreferences).toHaveBeenCalledWith(exactPreferences);
+    expect(renderCard).toHaveBeenCalledWith(expect.objectContaining({ options: exactPreferences }));
+  });
+
+  it("keeps generation non-blocking when enabled sound playback throws or rejects", async () => {
+    for (const playGenerationSound of [
+      vi.fn(() => { throw new Error("audio constructor failed"); }),
+      vi.fn(() => Promise.reject(new Error("audio resume failed"))),
+    ]) {
+      const renderCard = vi.fn(async () => ({ canvas: document.createElement("canvas"), coverFallbackUsed: false }));
+      const harness = makeHarness({ playGenerationSound, renderCard });
+      await createContentApp(harness.dependencies);
+      harness.overlay.emit("confirm-generate", {
+        source,
+        options: { ...generatedOptions, soundEnabled: true },
+      });
+      await settle();
+
+      expect(playGenerationSound).toHaveBeenCalledOnce();
+      expect(renderCard).toHaveBeenCalledOnce();
+      expect(harness.overlay.statuses.at(-1)).toEqual({ kind: "success", message: "卡片已保存" });
+    }
+  });
+
+  it("does not request generation sound when the preference is disabled", async () => {
+    const playGenerationSound = vi.fn();
+    const harness = makeHarness({ playGenerationSound });
+    await createContentApp(harness.dependencies);
+
+    harness.overlay.emit("confirm-generate", {
+      source,
+      options: { ...generatedOptions, soundEnabled: false },
+    });
+    await settle();
+
+    expect(playGenerationSound).not.toHaveBeenCalled();
   });
 
   it("includes the no-cover degradation in the user-perceivable success message", async () => {

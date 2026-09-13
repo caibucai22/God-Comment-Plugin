@@ -73,6 +73,7 @@ describe("OverlayRoot confirmation card", () => {
         includeAttributes: false,
         gameDecoration: true,
         soundEnabled: false,
+        panelSkin: "pixel",
       },
     });
   });

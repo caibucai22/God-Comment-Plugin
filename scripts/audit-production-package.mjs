@@ -20,6 +20,8 @@ const REQUIRED_ASSET_FAMILIES = Object.freeze([
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 const SOURCE_GLOBAL_NAMES = new Set(["globalThis", "window", "self"]);
 const SAFE_GLOBAL_ELEMENT_CALL_NAMES = new Set(["toString"]);
+const NETWORK_CONSTRUCTOR_NAMES = new Set(["XMLHttpRequest", "WebSocket", "Image"]);
+const NETWORK_GLOBAL_MEMBER_NAMES = new Set(["fetch", ...NETWORK_CONSTRUCTOR_NAMES]);
 
 export const FORBIDDEN_PRODUCTION_SOURCE_TOKENS = Object.freeze([
   "navigator.sendBeacon",
@@ -144,21 +146,101 @@ function isStringLiteralLike(expression) {
   return ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression);
 }
 
-function isFetchExpression(expression) {
-  if (ts.isIdentifier(expression)) return expression.text === "fetch";
+function staticMemberName(expression) {
+  if (ts.isIdentifier(expression) || isStringLiteralLike(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  if (ts.isElementAccessExpression(expression) && isStringLiteralLike(expression.argumentExpression)) {
+    return expression.argumentExpression.text;
+  }
+  return null;
+}
+
+function networkSinkName(expression) {
+  if (ts.isIdentifier(expression)) {
+    return NETWORK_GLOBAL_MEMBER_NAMES.has(expression.text) ? expression.text : null;
+  }
   if (ts.isPropertyAccessExpression(expression)) {
-    return isSourceGlobalExpression(expression.expression) && expression.name.text === "fetch";
+    if (isSourceGlobalExpression(expression.expression) && NETWORK_GLOBAL_MEMBER_NAMES.has(expression.name.text)) {
+      return expression.name.text;
+    }
+    if (ts.isIdentifier(expression.expression) && expression.expression.text === "navigator" && expression.name.text === "sendBeacon") {
+      return "sendBeacon";
+    }
   }
   if (ts.isElementAccessExpression(expression)) {
-    return isSourceGlobalExpression(expression.expression) && isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === "fetch";
+    const memberName = staticMemberName(expression);
+    if (isSourceGlobalExpression(expression.expression) && memberName && NETWORK_GLOBAL_MEMBER_NAMES.has(memberName)) {
+      return memberName;
+    }
+    if (ts.isIdentifier(expression.expression) && expression.expression.text === "navigator" && memberName === "sendBeacon") {
+      return "sendBeacon";
+    }
   }
-  return false;
+  return null;
+}
+
+function isFetchExpression(expression) {
+  return networkSinkName(expression) === "fetch";
 }
 
 function isForbiddenDynamicGlobalCall(expression) {
   if (!ts.isElementAccessExpression(expression) || !isSourceGlobalExpression(expression.expression)) return false;
   if (!isStringLiteralLike(expression.argumentExpression)) return true;
   return expression.argumentExpression.text !== "fetch" && !SAFE_GLOBAL_ELEMENT_CALL_NAMES.has(expression.argumentExpression.text);
+}
+
+function isNetworkAliasInitializer(expression) {
+  if (networkSinkName(expression)) return true;
+  if (ts.isElementAccessExpression(expression) && isSourceGlobalExpression(expression.expression) && !isStringLiteralLike(expression.argumentExpression)) {
+    return true;
+  }
+  if (!ts.isCallExpression(expression)) return false;
+  const bindExpression = expression.expression;
+  return (ts.isPropertyAccessExpression(bindExpression) || ts.isElementAccessExpression(bindExpression))
+    && staticMemberName(bindExpression) === "bind"
+    && networkSinkName(bindExpression.expression) !== null;
+}
+
+function bindingPatternCreatesNetworkAlias(name, initializer) {
+  if (!ts.isObjectBindingPattern(name)) return false;
+  if (ts.isIdentifier(initializer) && initializer.text === "navigator") {
+    return name.elements.some((element) => staticMemberName(element.propertyName ?? element.name) === "sendBeacon");
+  }
+  if (isSourceGlobalExpression(initializer)) {
+    return name.elements.some((element) => {
+      const memberName = staticMemberName(element.propertyName ?? element.name);
+      return memberName !== null && NETWORK_GLOBAL_MEMBER_NAMES.has(memberName);
+    });
+  }
+  return false;
+}
+
+function isImageSourceAssignment(node) {
+  if (!ts.isBinaryExpression(node) || node.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return false;
+  return (ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left))
+    && staticMemberName(node.left) === "src";
+}
+
+function isAllowedImageSourceAssignment(node, sourceFile, sourceRoot) {
+  const relativePath = normalizePath(sourceRoot, sourceFile.fileName);
+  if (relativePath === "render/image-loader.ts") {
+    return node.left.expression.getText(sourceFile) === "image" && ts.isIdentifier(node.right) && node.right.text === "url";
+  }
+  if (relativePath !== "ui/extension-panel.ts") return false;
+
+  if (ts.isIdentifier(node.right)) return /Asset$/.test(node.right.text);
+  if (ts.isElementAccessExpression(node.right) && ts.isIdentifier(node.right.expression)) {
+    return node.right.expression.text === "illustrationAssetByState" || node.right.expression.text === "bottomAssetByState";
+  }
+  return ts.isPropertyAccessExpression(node.right)
+    && node.right.expression.getText(sourceFile) === "model"
+    && node.right.name.text === "previewUrl";
+}
+
+function isAllowedRendererImageConstruction(node, sourceFile, sourceRoot) {
+  return normalizePath(sourceRoot, sourceFile.fileName) === "render/image-loader.ts"
+    && networkSinkName(node.expression) === "Image"
+    && (node.arguments?.length ?? 0) === 0;
 }
 
 function isAllowedRendererImageFetch(call, sourceFile, sourceRoot) {
@@ -194,11 +276,29 @@ async function inspectSourceNetworkCalls(sourceRoot) {
       if (ts.isCallExpression(node) && isForbiddenDynamicGlobalCall(node.expression)) {
         findings.push(Object.freeze({ path, token: "source-dynamic-global-call" }));
       }
-      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "sendBeacon" && node.expression.expression.getText(sourceFile) === "navigator") {
+      if (ts.isCallExpression(node) && networkSinkName(node.expression) === "sendBeacon") {
         findings.push(Object.freeze({ path, token: "navigator.sendBeacon" }));
       }
-      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && (node.expression.text === "XMLHttpRequest" || node.expression.text === "WebSocket")) {
-        findings.push(Object.freeze({ path, token: node.expression.text }));
+      if (ts.isCallExpression(node)) {
+        const sinkName = networkSinkName(node.expression);
+        if (sinkName && sinkName !== "fetch" && sinkName !== "sendBeacon") {
+          findings.push(Object.freeze({ path, token: `source-${sinkName}` }));
+        }
+      }
+      if (ts.isVariableDeclaration(node) && node.initializer
+        && (isNetworkAliasInitializer(node.initializer) || bindingPatternCreatesNetworkAlias(node.name, node.initializer))) {
+        findings.push(Object.freeze({ path, token: "source-network-alias" }));
+      }
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        && isNetworkAliasInitializer(node.right)) {
+        findings.push(Object.freeze({ path, token: "source-network-alias" }));
+      }
+      if (ts.isNewExpression(node) && networkSinkName(node.expression)
+        && !isAllowedRendererImageConstruction(node, sourceFile, sourceRoot)) {
+        findings.push(Object.freeze({ path, token: `source-${networkSinkName(node.expression)}` }));
+      }
+      if (isImageSourceAssignment(node) && !isAllowedImageSourceAssignment(node, sourceFile, sourceRoot)) {
+        findings.push(Object.freeze({ path, token: "source-image-src" }));
       }
       ts.forEachChild(node, visit);
     };

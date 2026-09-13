@@ -8,6 +8,7 @@ export interface CommentCardSource {
   authorName?: string;
   publishedAt?: string;
   videoCoverUrl?: string;
+  videoTitle?: string;
 }
 
 export interface GenerateOptions {

@@ -207,6 +207,60 @@ describe("auditProductionPackage", () => {
     await expect(auditProductionPackage({ distDir, sourceDir })).resolves.toMatchObject({ forbiddenPatternFindings: [] });
   });
 
+  it.each([
+    ["fetch.bind alias", "export const send = fetch.bind(globalThis);"],
+    ["destructured sendBeacon alias", "const { sendBeacon: report } = navigator; export { report };"],
+    ["variable fetch alias", "const request = window.fetch; export { request };"],
+    ["assigned WebSocket alias", "let Socket; Socket = self.WebSocket; export { Socket };"],
+    ["static global sink element access", "const Request = globalThis['XMLHttpRequest']; export { Request };"],
+    ["dynamic global sink element access", "const method = 'fetch'; const request = window[method]; export { request };"],
+    ["element-access sendBeacon call", "navigator['sendBeacon']('https://collector.example/events', 'payload');"],
+  ])("rejects network alias creation through %s", async (_name, sourceText) => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({ "content/alias.ts": sourceText });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
+  });
+
+  it.each([
+    ["Image constructor beacon", "const beacon = new Image(1, 1); export { beacon };"],
+    [
+      "DOM image src beacon",
+      "const beacon = document.createElement('img'); beacon.src = 'https://collector.example/pixel.gif?event=generated'; export { beacon };",
+    ],
+    [
+      "element-access image src beacon",
+      "const beacon = document.createElement('img'); beacon['src'] = 'https://collector.example/pixel.gif?event=saved'; export { beacon };",
+    ],
+  ])("rejects a source-level %s", async (_name, sourceText) => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({ "content/beacon.ts": sourceText });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).rejects.toThrow("source-level network call");
+  });
+
+  it("allows ordinary aliases and the renderer's explicit local image GET loader", async () => {
+    const distDir = await createProductionDist();
+    const sourceDir = await createSourceDirectory({
+      "content/safe-aliases.ts": [
+        "const stringify = JSON.stringify;",
+        "const stringifyBound = JSON.stringify.bind(JSON);",
+        "const { max } = Math;",
+        "export const result = `${stringify({ ok: true })}:${stringifyBound(max(1, 2))}`;",
+      ].join("\n"),
+      "render/image-loader.ts": [
+        "export function loadImage(url: string): HTMLImageElement {",
+        "  const image = new Image();",
+        "  image.crossOrigin = 'anonymous';",
+        "  image.src = url;",
+        "  return image;",
+        "}",
+      ].join("\n"),
+    });
+
+    await expect(auditProductionPackage({ distDir, sourceDir })).resolves.toMatchObject({ forbiddenPatternFindings: [] });
+  });
+
   it("rejects a Bilibili reply-add POST even from the image-loading allowlist file", async () => {
     const distDir = await createProductionDist();
     const sourceDir = await createSourceDirectory({

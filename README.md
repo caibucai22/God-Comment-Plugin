@@ -29,7 +29,7 @@ git diff --check
 & .\scripts\run-release-gates.ps1
 ```
 
-该入口会先初始化当前 PowerShell 进程所需的 Windows 环境变量，再直接运行本地 Vitest、TypeScript、Vite、最终 production-package audit、Playwright 与 Git 差异检查。production-package audit 在 Vite 生产构建后、Playwright 临时 E2E 构建前执行，验证最终 `dist/manifest.json` 的 MV3、最小权限、B站视频页 match、无 `host_permissions`、content script 与必要像素素材非空，并拒绝项目自有的遥测或上传端点标记。每次都会在 `.superpowers/logs/` 创建唯一的运行日志，其中包含每一步的开始/通过/失败状态，以及各 native 子进程实时输出的 stdout 与 stderr。不能以 `npm` 作为这一步的替代：`npm` 也是由 Node 启动的包装器，若 Node 启动前缺少 `SystemRoot`、`WINDIR` 或 `ComSpec`，npm 无法先恢复这些 Windows 变量。
+该入口会先初始化当前 PowerShell 进程所需的 Windows 环境变量，再直接运行本地 Vitest、TypeScript、Vite、最终 production-package audit、Playwright 与 Git 差异检查。production-package audit 在 Vite 生产构建后、Playwright 临时 E2E 构建前执行，验证最终 `dist/manifest.json` 的 MV3、最小权限、B站视频页 match、无 `host_permissions`、content script 与必要像素素材非空，并拒绝项目自有的遥测或上传端点标记、常见网络 API alias 以及非 renderer 白名单路径的 Image beacon。每次都会在 `.superpowers/logs/` 创建唯一的运行日志，其中包含每一步的开始/通过/失败状态，以及各 native 子进程实时输出的 stdout 与 stderr。不能以 `npm` 作为这一步的替代：`npm` 也是由 Node 启动的包装器，若 Node 启动前缺少 `SystemRoot`、`WINDIR` 或 `ComSpec`，npm 无法先恢复这些 Windows 变量。
 
 `npm run test:e2e` 会先正常构建并核对生产 manifest，再生成只匹配 `http://127.0.0.1/*` 的临时 E2E 构建，将 `dist/` 作为 unpacked extension 加载进 persistent Chromium context。测试结束后会再次正常构建，使 `dist/manifest.json` 恢复为生产范围。E2E 使用 Playwright 的 `channel: "chromium"`（完整 bundled Chromium），不静默跳过缺失浏览器；如果浏览器未安装，命令会明确失败并提示执行上面的安装命令。
 
@@ -56,13 +56,15 @@ npm run build
 
 ## 使用与选项
 
-点击右下角入口进入评论选择，悬停并点击合法评论后确认生成选项。默认比例为 `3:4`，也可选 `9:16`；提供温暖、历史、讽刺、SSS 四种样式。存在视频封面时默认包含封面，游戏化装饰默认关闭，两项都可以在确认面板中切换。
+点击右下角入口进入评论选择，悬停并点击合法评论后确认生成选项。比例可选 `3:4`（默认）、`9:16` 与 `16:9`；样式可选哔哩哔哩（默认）、温暖、历史、讽刺与 SSS。存在视频封面时默认包含封面；游戏化装饰和评论属性默认关闭，也都可以在确认面板中切换。
+
+生成提示音默认关闭；启用后只在用户触发生成时用本地 WebAudio 播放一次不足 500ms 的简短反馈，不加载外部音频，音频能力不可用或播放失败不会阻断生成。`prefers-reduced-motion` 只减少视觉动效，不会代替静音设置。Panel 皮肤默认为 `pixel`，也可切换到 `classic-dark`；切换即时生效并随其他偏好一起保存。
 
 选择模式支持 Escape、右键、点击非评论区域、再次点击入口或点击“退出”来退出；滚轮不会退出。
 
 ## 权限与隐私
 
-- `storage`：仅保存样式、比例、是否包含封面和是否启用游戏化装饰四项偏好。
+- `storage`：只保存 `style`、`ratio`、`includeCover`、`gameDecoration`、`includeAttributes`、`soundEnabled` 与 `panelSkin` 七项显示/生成偏好；不会保存评论正文草稿或视频标题。
 - `downloads`：把浏览器本地 Canvas 生成的 PNG 保存到下载目录；若 API 拒绝请求，会退回浏览器原生链接下载。
 
 卡片解析、属性生成、Canvas 渲染和 PNG 导出都在浏览器本地完成。扩展不包含后端、远程 AI 调用或遥测；除页面本身已有的封面资源加载外，不主动把评论内容或生成结果发送到网络。

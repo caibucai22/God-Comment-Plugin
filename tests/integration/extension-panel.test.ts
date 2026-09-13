@@ -102,6 +102,19 @@ describe("ExtensionPanel shared shell", () => {
     expect(panel.querySelector(".ccg-character-count")?.textContent).toBe(`${model("editing").source.content.length} / 500`);
   });
 
+  it("marks the default pixel skin and applies an explicit classic-dark data/class contract", () => {
+    const pixel = createExtensionPanel(document, model("editing"), {});
+    const classic = createExtensionPanel(document, {
+      ...model("editing"),
+      preferences: { ...model("editing").preferences, panelSkin: "classic-dark" },
+    }, {});
+
+    expect(pixel.dataset.panelSkin).toBe("pixel");
+    expect(pixel.classList.contains("ccg-extension-panel--classic-dark")).toBe(false);
+    expect(classic.dataset.panelSkin).toBe("classic-dark");
+    expect(classic.classList.contains("ccg-extension-panel--classic-dark")).toBe(true);
+  });
+
   it("edits, restores, validates, and emits a trimmed comment", () => {
     const onGenerate = vi.fn();
     const onDraftChange = vi.fn();

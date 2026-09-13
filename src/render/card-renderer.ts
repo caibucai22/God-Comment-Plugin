@@ -196,6 +196,7 @@ function drawPlatform(
   geometry: CardGeometry,
   tokens: CardStyleTokens,
   mark: HTMLImageElement | null,
+  videoTitle?: string,
 ): void {
   withSavedContext(ctx, () => {
     const markWidth = 68;
@@ -213,7 +214,12 @@ function drawPlatform(
     ctx.font = `600 30px ${FONT_FAMILY}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText("哔哩哔哩 · 评论", geometry.contentX + markWidth + 22, geometry.platformTop + geometry.platformHeight / 2);
+    const titleX = geometry.contentX + markWidth + 22;
+    const titleRight = geometry.contentX + geometry.contentWidth - (tokens.mark ? 96 : 0);
+    const fittedTitle = videoTitle ? fitText(ctx, videoTitle, Math.max(0, titleRight - titleX)) : "";
+    if (fittedTitle) {
+      ctx.fillText(fittedTitle, titleX, geometry.platformTop + geometry.platformHeight / 2);
+    }
 
     if (tokens.mark) {
       ctx.fillStyle = tokens.mark.color;
@@ -287,6 +293,8 @@ function drawBody(
       lineHeight: 1.24,
     },
   );
+  const textBlockHeight = layout.lines.length * layout.lineHeight;
+  const firstLineY = geometry.bodyTop + Math.max(0, bodyHeight - textBlockHeight) / 2;
 
   withSavedContext(ctx, () => {
     ctx.fillStyle = tokens.bodyText;
@@ -294,7 +302,7 @@ function drawBody(
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     layout.lines.forEach((line, index) => {
-      ctx.fillText(line, geometry.contentX, geometry.bodyTop + index * layout.lineHeight);
+      ctx.fillText(line, geometry.contentX, firstLineY + index * layout.lineHeight);
     });
   });
 }
@@ -454,7 +462,13 @@ function estimateCoverRatio(content: string): number {
   return 0.26 - progress * 0.08;
 }
 
-function createGeometry(width: number, height: number, source: CommentCardSource, hasCover: boolean): CardGeometry {
+function createGeometry(
+  width: number,
+  height: number,
+  source: CommentCardSource,
+  hasCover: boolean,
+  includeAttributes: boolean,
+): CardGeometry {
   const margin = width === 1200 ? 80 : 72;
   const contentX = margin;
   const contentWidth = width - margin * 2;
@@ -464,9 +478,9 @@ function createGeometry(width: number, height: number, source: CommentCardSource
   const coverTop = platformBottom + 28;
   const coverHeight = hasCover ? height * estimateCoverRatio(source.content) : 0;
   const bodyTop = hasCover ? coverTop + coverHeight + 36 : platformBottom + 36;
-  const attributeTop = height - margin - 138;
+  const attributeTop = includeAttributes ? height - margin - 138 : height - margin;
   const attributeBaseline = attributeTop + 68;
-  const metadataBottom = attributeTop - 38;
+  const metadataBottom = includeAttributes ? attributeTop - 38 : height - margin;
   const bodyBottom = metadataBottom - (source.publishedAt ? 104 : 62);
 
   return {
@@ -524,17 +538,23 @@ export async function renderCard(input: RenderCardInput): Promise<RenderCardResu
   ctx.imageSmoothingQuality = "high";
 
   const images = await loadImages(input, dependencies);
-  const geometry = createGeometry(dimensions.width, dimensions.height, input.source, images.cover !== null);
+  const geometry = createGeometry(
+    dimensions.width,
+    dimensions.height,
+    input.source,
+    images.cover !== null,
+    input.options.includeAttributes === true,
+  );
   const tokens = getStyleTokens(input.options.style, input.options.gameDecoration);
 
   drawBackground(ctx, geometry, tokens);
   drawTextureAndBaseParticles(ctx, geometry, tokens);
   drawBorder(ctx, geometry, tokens);
-  drawPlatform(ctx, geometry, tokens, images.mark);
+  drawPlatform(ctx, geometry, tokens, images.mark, input.source.videoTitle);
   if (images.cover) drawCoverCrop(ctx, images.cover, geometry);
   drawBody(ctx, geometry, tokens, input.source.content);
   drawMetadata(ctx, geometry, tokens, input.source);
-  drawAttributes(ctx, geometry, tokens, input.attributes);
+  if (input.options.includeAttributes === true) drawAttributes(ctx, geometry, tokens, input.attributes);
   drawGameDecoration(ctx, geometry, tokens);
 
   return { canvas, coverFallbackUsed: images.coverFallbackUsed };

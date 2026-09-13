@@ -1,11 +1,11 @@
-import type { CardRatio, CardStyle, CommentCardSource, GenerateOptions, PanelSkin } from "../domain/types";
+import type { CardPreferences, CardRatio, CardStyle, CommentCardSource, PanelSkin } from "../domain/types";
 import type { PanelState, PanelViewModel } from "./panel-state";
 
 export interface ExtensionPanelHandlers {
   readonly onClose?: () => void;
   readonly onDraftChange?: (content: string) => void;
   readonly onRestoreOriginal?: () => void;
-  readonly onGenerate?: (source: CommentCardSource, options: GenerateOptions) => void;
+  readonly onGenerate?: (source: CommentCardSource, options: CardPreferences) => void;
   readonly onPanelSkinChange?: (skin: PanelSkin) => void;
   readonly onCancelGeneration?: () => void;
   readonly onRetryGeneration?: () => void;
@@ -276,6 +276,7 @@ function renderEditing(
     }
     const style = content.querySelector<HTMLInputElement>('input[name="ccg-style"]:checked')!;
     const ratio = content.querySelector<HTMLInputElement>('input[name="ccg-ratio"]:checked')!;
+    const panelSkin = content.querySelector<HTMLInputElement>('input[name="ccg-panel-skin"]:checked')!;
     handlers.onGenerate?.(
       { ...model.source, content: edited },
       {
@@ -285,6 +286,7 @@ function renderEditing(
         includeAttributes: includeAttributes.checked,
         gameDecoration: gameDecoration.checked,
         soundEnabled: soundEnabled.checked,
+        panelSkin: panelSkin.value as PanelSkin,
       },
     );
   });
@@ -423,8 +425,11 @@ export function createExtensionPanel(
   handlers: ExtensionPanelHandlers,
 ): HTMLElement {
   const panel = document.createElement("section");
+  const panelSkin = model.preferences.panelSkin ?? "pixel";
   panel.className = "ccg-extension-panel";
+  panel.classList.toggle("ccg-extension-panel--classic-dark", panelSkin === "classic-dark");
   panel.dataset.panelState = model.state;
+  panel.dataset.panelSkin = panelSkin;
   panel.setAttribute("aria-label", "流光卡片核");
 
   const header = document.createElement("header");

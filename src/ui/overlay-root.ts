@@ -205,10 +205,17 @@ export class OverlayRoot extends EventTarget {
         onPanelSkinChange: (panelSkin) => {
           if (!this.confirmation || this.destroyed) return;
           this.confirmation.preferences = { ...this.confirmation.preferences, panelSkin };
+          const panel = this.root?.querySelector(".ccg-extension-panel");
+          if (panel instanceof HTMLElement) {
+            panel.dataset.panelSkin = panelSkin;
+            panel.classList.toggle("ccg-extension-panel--classic-dark", panelSkin === "classic-dark");
+          }
         },
         onGenerate: (source, options) => {
           if (this.destroyed || !this.confirmation || this.generationBusy) return;
-          this.emit("confirm-generate", { source, options });
+          const preferences = { ...this.confirmation.preferences, ...options };
+          this.confirmation = { ...this.confirmation, source, preferences };
+          this.emit("confirm-generate", { source, options: preferences });
         },
         onCancelGeneration: () => this.emit("cancel-generation"),
         onRetryGeneration: () => this.emit("retry-generation"),

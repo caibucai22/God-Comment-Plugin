@@ -79,6 +79,21 @@ test("keeps generated preview actions fully inside the fixed state viewport", as
   );
 });
 
+test("keeps pixel as the default skin and applies the classic-dark visual surface", async ({ page }) => {
+  await page.goto("/panel-preview.html?state=editing");
+  const panel = page.locator(".ccg-extension-panel");
+
+  await expect(panel).toHaveAttribute("data-panel-skin", "pixel");
+  await expect(panel).toHaveCSS("background-color", "rgb(250, 250, 250)");
+  await page.getByRole("button", { name: "更多选项设置" }).click();
+  await page.locator('input[name="ccg-panel-skin"][value="classic-dark"]').check();
+
+  await expect(panel).toHaveAttribute("data-panel-skin", "classic-dark");
+  await expect(panel).toHaveClass(/ccg-extension-panel--classic-dark/u);
+  await expect(panel).toHaveCSS("background-color", "rgb(18, 20, 27)");
+  await expect(panel.locator(".ccg-panel-header")).toHaveCSS("background-color", "rgb(24, 27, 36)");
+});
+
 test("captures explicitly requested visual QA artifacts", async ({ page }) => {
   const round = process.env.CCG_VISUAL_QA_ROUND;
   test.skip(!round, "Set CCG_VISUAL_QA_ROUND to capture visual QA screenshots");

@@ -1,4 +1,5 @@
 import { generateAttributes as defaultGenerateAttributes } from "../attributes/generator";
+import { playGenerationSound as defaultPlayGenerationSound } from "../audio/generation-sound";
 import type {
   CardRatio,
   CardAttributes,
@@ -72,6 +73,7 @@ export interface ContentAppDependencies {
   readonly exportPng: (canvas: HTMLCanvasElement, filename: string) => Promise<void>;
   readonly createPngArtifact?: (canvas: HTMLCanvasElement) => Promise<PngArtifact>;
   readonly downloadPngArtifact?: (artifact: PngArtifact, filename: string) => Promise<void>;
+  readonly playGenerationSound?: () => void | Promise<void>;
   readonly createFilename: () => string;
 }
 
@@ -81,7 +83,7 @@ export interface ContentApp {
 
 interface GenerateDetail {
   readonly source: CommentCardSource;
-  readonly options: GenerateOptions;
+  readonly options: CardPreferences;
 }
 
 function validSource(source: CommentCardSource, adapter: PlatformAdapter): boolean {
@@ -185,6 +187,14 @@ export async function createContentApp(
         return;
       }
 
+      if (options.soundEnabled && dependencies.playGenerationSound) {
+        try {
+          void Promise.resolve(dependencies.playGenerationSound()).catch(() => undefined);
+        } catch {
+          // Optional audio feedback must not affect generation.
+        }
+      }
+
       const exactPreferences: CardPreferences = {
         style: options.style,
         ratio: options.ratio,
@@ -192,6 +202,7 @@ export async function createContentApp(
         gameDecoration: options.gameDecoration,
         includeAttributes: options.includeAttributes ?? false,
         soundEnabled: options.soundEnabled ?? false,
+        panelSkin: options.panelSkin ?? preferences.panelSkin ?? "pixel",
       };
 
       let rendered: RenderCardResult;
@@ -347,7 +358,7 @@ export async function createContentApp(
     pendingFilename = null;
     releasePendingArtifact();
     if (releaseRetained()) overlay.showStatus("info", "已取消下载");
-    overlay.setSelectionActive(controller.active);
+    controller.exit("panel-close");
   };
   const onConfirmGenerate: EventListener = (event) => {
     const detail = (event as CustomEvent<GenerateDetail>).detail;
@@ -428,6 +439,7 @@ function productionDependencies(): ContentAppDependencies {
     exportPng: defaultExportPng,
     createPngArtifact: (canvas) => exportService.createPngArtifact(canvas),
     downloadPngArtifact: (artifact, filename) => exportService.downloadPngArtifact(artifact, filename),
+    playGenerationSound: defaultPlayGenerationSound,
     createFilename: createPngFilename,
   };
 }

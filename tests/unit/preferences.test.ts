@@ -39,6 +39,26 @@ describe("preferences", () => {
     await expect(loadPreferences()).resolves.toEqual(expect.objectContaining({ ratio: "9:16" }));
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ ratio: "9:16" }));
   });
+  it("round-trips enabled sound and the classic-dark panel skin through exact storage fields", async () => {
+    let stored: Record<string, unknown> = {};
+    const set = vi.fn(async (values: Record<string, unknown>) => { stored = values; });
+    (globalThis as { chrome?: unknown }).chrome = {
+      storage: { sync: { get: async () => stored, set } },
+    };
+
+    await savePreferences({ soundEnabled: true, panelSkin: "classic-dark" });
+
+    await expect(loadPreferences()).resolves.toEqual({
+      ...defaults,
+      soundEnabled: true,
+      panelSkin: "classic-dark",
+    });
+    expect(set).toHaveBeenCalledWith({
+      ...defaults,
+      soundEnabled: true,
+      panelSkin: "classic-dark",
+    });
+  });
   it("returns the exact defaults when Chrome storage is unavailable", async () => {
     await expect(loadPreferences()).resolves.toEqual(defaults);
   });
