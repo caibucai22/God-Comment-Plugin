@@ -2,7 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { createExtensionPanel } from "../../src/ui/extension-panel";
 import type { PanelState, PanelViewModel } from "../../src/ui/panel-state";
 
-const states: PanelState[] = ["editing", "generating", "failed", "generated", "saved"];
+const stateContract = {
+  editing: { required: ["内容设置", "制作卡片"], forbidden: ["制作中"] },
+  generating: { required: ["制作中", "取消制作"], forbidden: ["确认保存"] },
+  failed: { required: ["制作失败", "重新生成", "返回修改"], forbidden: ["保存成功"] },
+  generated: { required: ["确认保存", "返回修改"], forbidden: ["保存成功"] },
+  saved: { required: ["保存成功", "再做一张"], forbidden: ["确认保存"] },
+} as const satisfies Record<PanelState, {
+  readonly required: readonly string[];
+  readonly forbidden: readonly string[];
+}>;
+
+const states = Object.keys(stateContract) as PanelState[];
 
 function model(state: PanelState): PanelViewModel {
   return {
@@ -18,6 +29,20 @@ function model(state: PanelState): PanelViewModel {
 }
 
 describe("ExtensionPanel shared shell", () => {
+  it.each(Object.entries(stateContract) as Array<[PanelState, (typeof stateContract)[PanelState]]>)(
+    "keeps the release semantic contract for %s",
+    (state, contract) => {
+      const panel = createExtensionPanel(document, model(state), {});
+
+      expect(panel.querySelectorAll(".ccg-panel-header")).toHaveLength(1);
+      expect(panel.querySelectorAll(".ccg-state-viewport")).toHaveLength(1);
+      expect(panel.querySelectorAll(".ccg-panel-action-area")).toHaveLength(1);
+      expect(panel.querySelectorAll(".ccg-bottom-decoration")).toHaveLength(1);
+      for (const text of contract.required) expect(panel.textContent).toContain(text);
+      for (const text of contract.forbidden) expect(panel.textContent).not.toContain(text);
+    },
+  );
+
   it.each(states)("renders exactly one shared shell for %s", (state) => {
     const panel = createExtensionPanel(document, model(state), {});
 

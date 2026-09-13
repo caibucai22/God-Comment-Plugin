@@ -340,7 +340,7 @@ function appendStateContent(
       }
       track.append(fill);
       const number = document.createElement("strong");
-      number.textContent = model.progress === undefined ? "制作中" : `${model.progress}%`;
+      number.textContent = model.progress === undefined ? "制作中" : `制作中 ${model.progress}%`;
       progress.append(track, number);
       const tip = document.createElement("aside");
       tip.className = "ccg-generation-tip";

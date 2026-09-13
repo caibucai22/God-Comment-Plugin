@@ -2,25 +2,52 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-const states = ["editing", "generating", "failed", "generated", "saved"] as const;
+const stateContract = {
+  editing: { required: ["内容设置", "制作卡片"], forbidden: ["制作中"] },
+  generating: { required: ["制作中", "取消制作"], forbidden: ["确认保存"] },
+  failed: { required: ["制作失败", "重新生成", "返回修改"], forbidden: ["保存成功"] },
+  generated: { required: ["确认保存", "返回修改"], forbidden: ["保存成功"] },
+  saved: { required: ["保存成功", "再做一张"], forbidden: ["确认保存"] },
+} as const;
 
-test("renders one fixed-size extension panel for every state", async ({ page }) => {
+const states = Object.keys(stateContract) as Array<keyof typeof stateContract>;
+
+test("enforces the five-state release geometry and semantic contract", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 850 });
   for (const state of states) {
     await page.goto(`/panel-preview.html?state=${state}`);
     const panel = page.locator(`.ccg-extension-panel[data-panel-state="${state}"]`);
     await expect(panel).toBeVisible();
     await expect(page.locator(".ccg-extension-panel")).toHaveCount(1);
+    await expect(panel.locator(".ccg-panel-header")).toHaveCount(1);
+    await expect(panel.locator(".ccg-state-viewport")).toHaveCount(1);
     const bounds = await panel.boundingBox();
     expect(bounds?.width).toBe(336);
     expect(bounds?.height).toBe(570);
     await expect(panel.locator(".ccg-stepper")).toHaveCount(0);
     await expect(panel.locator(".ccg-panel-action-area")).toHaveCount(1);
+    await expect(panel.locator(".ccg-bottom-decoration")).toHaveCount(1);
     const ground = panel.locator(".ccg-bottom-decoration__ground");
     const groundBounds = await ground.boundingBox();
     expect(groundBounds?.width).toBe(bounds!.width - 2);
     expect(groundBounds?.height).toBe(18);
     await expect(panel.locator(".ccg-bottom-decoration__scene")).toHaveCSS("object-fit", "contain");
+    for (const text of stateContract[state].required) await expect(panel).toContainText(text);
+    for (const text of stateContract[state].forbidden) await expect(panel).not.toContainText(text);
+    const controls = panel.locator("button, input, textarea");
+    for (let index = 0; index < await controls.count(); index += 1) {
+      const control = controls.nth(index);
+      if (!await control.isVisible()) continue;
+      const controlBounds = await control.boundingBox();
+      expect(controlBounds, `visible ${state} control ${index} should have bounds`).not.toBeNull();
+      expect(controlBounds!.x).toBeGreaterThanOrEqual(bounds!.x);
+      expect(controlBounds!.y).toBeGreaterThanOrEqual(bounds!.y);
+      expect(controlBounds!.x + controlBounds!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
+      expect(controlBounds!.y + controlBounds!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+    }
+    if (state === "generated") {
+      await expect(panel.locator(".ccg-generated-preview")).not.toHaveCSS("image-rendering", "pixelated");
+    }
     await expect(panel).not.toContainText("BETA");
     await expect(page.locator("[data-five-column-layout]")).toHaveCount(0);
   }
