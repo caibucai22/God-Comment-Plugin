@@ -1,24 +1,52 @@
-# Chrome MCP 真实浏览器检查清单
+# Chrome MCP 真实浏览器 RC 检查清单
 
-本清单用于父控制器或审阅者通过已安装的 `chrome-mcp-tools` 复核真实 Chrome。Task 9 实现者只准备流程，**没有执行或声称执行本次 Chrome MCP 会话**。
+本清单用于可调用 Chrome MCP 的控制器在真实 Bilibili 视频页复核 production `dist`。本轮（2026-09-13）没有可调用 Chrome MCP；**没有执行新的真实 B站会话**。因此这份清单的未执行项必须保持 `NOT RUN`，不得以 Playwright fixture、production audit 或历史截图替代。
 
-## 1. 准备生产扩展
+## 当前证据状态
 
-在 Windows Native PowerShell 中执行：
+| 范围 | 状态 | 具名来源/限制 |
+| --- | --- | --- |
+| 历史真实主流程 | `PASS`（仅继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`：入口、顶层评论、默认已展示回复、连续动画、滚动目标更新、生成和本地保存 |
+| 历史真实 editing Panel | `PASS`（仅继承） | `.superpowers/status/manual-acceptance_执行命令说明_20260912.md`：单一 editing 截图，固定操作区和底部装饰 |
+| 本轮五态视觉 | `PASS`（fixture） | `.superpowers/visual-qa/round-mvp-rc-20260913_105656_186-bc892c77b93e4ba48bb61c9322c291fd/`；不能证明真实 B站 |
+| 本轮真实 Chrome MCP | `NOT RUN` | 当前工具集无 callable Chrome MCP |
+
+## 准备生产扩展
+
+在 Windows Native PowerShell / Node 22.22.2 中执行：
 
 ```powershell
-npm run build
+& '.\scripts\run-release-gates.ps1'
 ```
 
-确认 `dist/manifest.json` 的 content-script match 仍只有 `https://www.bilibili.com/video/*`，permissions 恰为 `storage` 与 `downloads`，且没有新增 `host_permissions`。在 `chrome://extensions/` 开启开发者模式并加载项目 `dist` 目录。
+完成后确认 production `dist/manifest.json` 的 content-script match 只有 `https://www.bilibili.com/video/*`，permissions 恰为 `storage` 与 `downloads`，且无 `host_permissions`。在 `chrome://extensions/` 开启开发者模式并加载该 `dist`。真实页面与本地 fixture 独立；fixture 测试结束后 `dist` 会恢复为 production 构建。
 
-本清单当前的 Chrome MCP 手工路径使用一个真实 Bilibili 视频页。`npm run test:e2e` 内部使用的本地 fixture 只在自动化测试进程期间存活；测试结束后服务器关闭且 `dist` 恢复生产构建，不能在随后独立的 MCP 会话中继续访问。真实站点结果受登录、网络和页面改版影响，因此 MCP 手工结果不能代替本地 Playwright fixture 基线。
+## RC 实测登记（下一次 Chrome MCP 会话填写）
 
-## 2. 页面与 Shadow DOM
+| 检查项 | 当前状态 | 所需真实页面证据 |
+| --- | --- | --- |
+| 页面刷新后右下角入口唯一可见 | `PASS`（仅继承） | 新会话 snapshot 或脱敏截图 |
+| 顶层评论 hover、选择并打开 editing | `PASS`（仅继承） | 新会话操作记录 |
+| 默认展示回复独立选择，卡片只含其作者/正文/时间 | `PASS`（仅继承） | 新会话脱敏证据 |
+| 相邻移动与滚动后的高亮连续 | `PASS`（仅继承） | 新会话操作记录 |
+| editing 状态固定操作区、底部装饰、无裁切/遮挡 | `PASS`（仅继承） | 新会话脱敏截图 |
+| generating 状态：插画、制作中、取消制作，无编辑/保存 | `NOT RUN` | 状态截图与操作记录 |
+| failed 状态：错误、重新生成、返回修改 | `NOT RUN` | 状态截图与恢复记录 |
+| generated 状态：预览、实际比例/尺寸、返回修改、确认保存 | `NOT RUN` | 状态截图与下载前目录记录 |
+| saved 状态：PNG、分辨率、本地下载、再做一张 | `NOT RUN` | 状态截图与下载文件元数据 |
+| `9:16` 生成并确认保存 1080 × 1920 PNG | `NOT RUN` | 脱敏 IHDR/文件大小记录 |
+| `16:9` 生成并确认保存 1920 × 1080 PNG | `NOT RUN` | 脱敏 IHDR/文件大小记录 |
+| generated 前不下载，仅“确认保存”后下载一次 | `NOT RUN` | 生成前后下载目录计数与操作记录 |
+| Panel 关闭后页面评论点击、滚动、链接和右键恢复 | `NOT RUN` | 操作记录 |
+| Escape、右键、空白处、入口 toggle、提示退出 | `NOT RUN` | 五项操作记录 |
+| 125% Windows 缩放下 Panel 未越界且底部操作区可用 | `NOT RUN` | 缩放值、脱敏截图与操作记录 |
+| reduced-motion、扩展 console、权限和证据隐私 | `NOT RUN` | computed style、console 摘要、manifest 审查和脱敏核对 |
 
-1. 用 Chrome MCP 选择现有标签页或打开目标视频页。
-2. 先获取 accessibility snapshot，定位“开启评论选择”按钮。
-3. 如果 snapshot 无法穿透扩展的 open Shadow DOM，用 evaluate 查找宿主：
+## 页面与 Shadow DOM 操作
+
+1. 用 Chrome MCP 选择现有标签页或打开脱敏后的真实视频页。
+2. 获取 accessibility snapshot，定位“开启评论选择”。
+3. 必要时 evaluate：
 
 ```javascript
 const host = document.querySelector('[data-ccg-overlay-root]');
@@ -30,33 +58,11 @@ const root = host?.shadowRoot;
 });
 ```
 
-4. 确认页面只有一个 `[data-ccg-overlay-root]`。
+4. 确认仅一个 `[data-ccg-overlay-root]`，随后逐项填写上表；无工具调用证据时不能改写为 `PASS`。
 
-## 3. 主流程
+## 证据保存与隐私
 
-- 点击入口，确认提示出现。
-- hover 一条合法评论，evaluate 确认评论节点含 `ccg-comment-hover`。
-- 点击评论，确认“生成前确认”面板和评论预览出现。
-- 核对默认 `3:4`、封面可用时勾选封面、游戏化装饰未勾选，并确认四种样式可选。
-- 点击“生成卡片”，确认下载文件名以 `.png` 结尾且文件非空。
-- 检查页面 console：不得有扩展引起的 uncaught exception 或 error 级日志。
-
-## 4. 退出与无障碍动效
-
-每次重新进入选择模式后分别验证：
-
-- 按 Escape 退出。
-- 在评论上右键，退出且浏览器 context menu 被抑制。
-- 点击非评论区域退出。
-- 再次点击入口退出。
-- 点击提示中的“退出”按钮退出。
-- 滚轮滚动后仍处于选择模式。
-
-将系统或页面的 `prefers-reduced-motion` 设为 `reduce`，evaluate `.ccg-entry::before` 的 computed `animationName` 应为 `none`；随后仍应能进入选择、选择评论并打开确认面板。
-
-## 5. 证据保存
-
-检查前生成一次时间戳，所有截图和日志使用不覆盖命名：
+所有新文件使用不覆盖名称，例如：
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -64,4 +70,4 @@ $screenshotName = "ChromeMCP主流程_执行命令说明_$stamp.png"
 $consoleLogName = "ChromeMCP控制台_执行命令说明_$stamp.log"
 ```
 
-至少保留：入口 snapshot、hover/确认面板截图、下载文件信息、退出路径操作日志、reduced-motion computed style、console 检查结果。报告应区分“已按 MCP 执行并有工具证据”与“仅阅读本清单”；没有工具调用证据时不得写成已验证。
+保留入口 snapshot、五态中的实际执行状态、9:16/16:9 下载文件元数据、确认前后下载计数、五种退出路径、125% 缩放、reduced-motion computed style 和 console 摘要。不得保存 Cookie、登录凭据、完整个人主页 URL 或不必要的评论正文。
