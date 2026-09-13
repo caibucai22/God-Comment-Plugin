@@ -131,6 +131,8 @@ function createLiveShadowCommentFixture(): {
 
 describe("BilibiliAdapter", () => {
   beforeEach(() => {
+    document.head.innerHTML = "";
+    document.title = "";
     document.body.innerHTML = fixture;
   });
 
@@ -182,6 +184,39 @@ describe("BilibiliAdapter", () => {
     expect(new BilibiliAdapter(document, window.location).getVideoCoverUrl()).toBe(
       "https://i0.hdslb.com/player.jpg",
     );
+  });
+
+  it("prefers normalized og:title over the visible video heading and document title", () => {
+    const metadataTitle = document.createElement("meta");
+    metadataTitle.setAttribute("property", "og:title");
+    metadataTitle.content = "  稳定   OG 标题 _ 哔哩哔哩_bilibili  ";
+    document.head.append(metadataTitle);
+    const visibleTitle = document.createElement("h1");
+    visibleTitle.className = "video-title";
+    visibleTitle.title = "可见视频标题";
+    visibleTitle.textContent = "不会优先采用的标题";
+    document.body.prepend(visibleTitle);
+    document.title = "文档标题 - 哔哩哔哩";
+    const comment = document.querySelector("[data-testid=comment-item]")!;
+
+    expect(new BilibiliAdapter(document, window.location).extractComment(comment)?.videoTitle).toBe("稳定 OG 标题");
+  });
+
+  it("falls back from the visible video heading to document.title and then to no title", () => {
+    const visibleTitle = document.createElement("h1");
+    visibleTitle.className = "video-title";
+    visibleTitle.title = "  主标题   内容 - 哔哩哔哩  ";
+    visibleTitle.textContent = "较不稳定的子节点文本";
+    document.body.prepend(visibleTitle);
+    document.title = "文档回退标题 | bilibili";
+    const adapter = new BilibiliAdapter(document, window.location);
+    const comment = document.querySelector("[data-testid=comment-item]")!;
+
+    expect(adapter.extractComment(comment)?.videoTitle).toBe("主标题 内容");
+    visibleTitle.remove();
+    expect(adapter.extractComment(comment)?.videoTitle).toBe("文档回退标题");
+    document.title = "";
+    expect(adapter.extractComment(comment)?.videoTitle).toBeUndefined();
   });
 
   it("extracts a comment from the nested open Shadow DOM observed on live Bilibili", () => {

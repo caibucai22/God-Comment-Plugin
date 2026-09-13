@@ -149,6 +149,7 @@ const baseInput: Omit<RenderCardInput, "dependencies"> = {
     authorName: "测试用户",
     publishedAt: "2026-08-14 12:30",
     videoCoverUrl: "https://example.test/cover.jpg",
+    videoTitle: "测试视频标题",
   },
   options: {
     style: "warm",
@@ -302,7 +303,7 @@ describe("renderCard", () => {
     const content = "正文内容 ".repeat(90);
     const { canvas } = await render({
       source: { content },
-      options: { gameDecoration: true },
+      options: { gameDecoration: true, includeAttributes: true },
     });
     const { calls } = canvas.context;
     const tokens = getStyleTokens("warm", true);
@@ -311,7 +312,7 @@ describe("renderCard", () => {
     const background = indexOf((call) => call.name === "fillRect" && call.args[0] === 0 && call.args[1] === 0);
     const texture = indexOf((call) => call.name === "fill" && call.globalAlpha === tokens.texture.opacity);
     const border = indexOf((call) => call.name === "strokeRect");
-    const platform = indexOf((call) => call.name === "fillText" && String(call.args[0]).includes("哔哩哔哩"));
+    const platform = indexOf((call) => call.name === "fillText" && call.args[0] === "测试视频标题");
     const cover = calls.indexOf(coverCall(canvas.context));
     const bodyStart = calls.indexOf(body[0]);
     const author = indexOf((call) => call.name === "fillText" && call.args[0] === "测试用户");
@@ -405,8 +406,73 @@ describe("renderCard", () => {
     );
   });
 
+  it("draws attributes only when enabled and releases their space to the comment body when disabled", async () => {
+    const content = "需要完整利用正文区域的长评论。".repeat(240);
+    const disabled = await render({
+      source: { content },
+      options: { includeCover: false, includeAttributes: false },
+    });
+    const enabled = await render({
+      source: { content },
+      options: { includeCover: false, includeAttributes: true },
+    });
+    const tokens = getStyleTokens("warm", false);
+    const disabledBody = bodyCalls(disabled.canvas.context, tokens.bodyText);
+    const enabledBody = bodyCalls(enabled.canvas.context, tokens.bodyText);
+
+    for (const label of ["幽默值 88", "温暖值 72", "嘲讽值 41"]) {
+      expect(textCalls(disabled.canvas.context, label)).toHaveLength(0);
+      expect(textCalls(enabled.canvas.context, label)).toHaveLength(1);
+    }
+    expect(disabledBody.length).toBeGreaterThan(enabledBody.length);
+    expect(disabledBody.at(-1)!.args[2] as number).toBeGreaterThan(enabledBody.at(-1)!.args[2] as number);
+  });
+
+  it.each([
+    { length: "short", content: "短评", includeAttributes: false, bodyBottom: 1416 },
+    { length: "short", content: "短评", includeAttributes: true, bodyBottom: 1240 },
+    { length: "long", content: "用于验证长正文实际排版块居中的内容。".repeat(260), includeAttributes: false, bodyBottom: 1416 },
+    { length: "long", content: "用于验证长正文实际排版块居中的内容。".repeat(260), includeAttributes: true, bodyBottom: 1240 },
+  ] as const)("centers the $length laid-out body with attributes=$includeAttributes without overlapping metadata", async ({
+    content,
+    includeAttributes,
+    bodyBottom,
+  }) => {
+    const { canvas } = await render({
+      source: { content },
+      options: { includeCover: false, includeAttributes },
+    });
+    const tokens = getStyleTokens("warm", false);
+    const body = bodyCalls(canvas.context, tokens.bodyText);
+    const fontSize = Number(body[0].font.match(/(\d+(?:\.\d+)?)px/u)?.[1]);
+    const lineHeight = fontSize * 1.24;
+    const expectedFirstY = 200 + ((bodyBottom - 200) - body.length * lineHeight) / 2;
+    const metadata = [
+      textCalls(canvas.context, "测试用户")[0],
+      textCalls(canvas.context, "2026-08-14 12:30")[0],
+    ];
+    const lastBodyBottom = textBounds(body.at(-1)!).bottom;
+    const firstMetadataTop = Math.min(...metadata.map((call) => textBounds(call).top));
+    const attributeCalls = ["幽默值 88", "温暖值 72", "嘲讽值 41"]
+      .flatMap((label) => textCalls(canvas.context, label));
+
+    expect(body[0].args[2] as number).toBeCloseTo(expectedFirstY, 5);
+    expect(lastBodyBottom).toBeLessThan(firstMetadataTop);
+    if (includeAttributes) {
+      const lastMetadataBottom = Math.max(...metadata.map((call) => textBounds(call).bottom));
+      const firstAttributeTop = Math.min(...attributeCalls.map((call) => textBounds(call).top));
+      expect(attributeCalls).toHaveLength(3);
+      expect(lastMetadataBottom).toBeLessThan(firstAttributeTop);
+    } else {
+      expect(attributeCalls).toHaveLength(0);
+    }
+  });
+
   it("renders exact attribute labels and emphasizes ties in humor-warmth-sarcasm order", async () => {
-    const { canvas } = await render({ attributes: { humor: 90, warmth: 90, sarcasm: 90 } });
+    const { canvas } = await render({
+      options: { includeAttributes: true },
+      attributes: { humor: 90, warmth: 90, sarcasm: 90 },
+    });
     const tokens = getStyleTokens("warm", false);
     const humor = textCalls(canvas.context, "幽默值 90")[0];
     const warmth = textCalls(canvas.context, "温暖值 90")[0];
@@ -424,6 +490,7 @@ describe("renderCard", () => {
 
   it("keeps long metadata and numeric attribute text inside the content safe bounds", async () => {
     const { canvas } = await render({
+      options: { includeAttributes: true },
       source: {
         authorName: "超长用户名".repeat(50),
         publishedAt: "超长发布时间".repeat(50),
@@ -477,6 +544,36 @@ describe("renderCard", () => {
     expect(loadedUrls).toHaveLength(1);
     expect(loadedUrls[0]).not.toMatch(/^https?:/u);
     expect(loadedUrls[0]).toMatch(/^(?:data:image\/svg\+xml|file:|chrome-extension:)/u);
+    expect(canvas.context.calls.some(
+      (call) => call.name === "drawImage" && (call.args[0] as FakeImage).tag === loadedUrls[0],
+    )).toBe(true);
+  });
+
+  it("draws one ellipsized video title beside the local Bilibili mark without colliding with the style mark", async () => {
+    const videoTitle = "超长视频标题：需要在卡片平台行内稳定显示并在超出宽度时截断。".repeat(8);
+    const { canvas } = await render({
+      source: { videoTitle },
+      options: { includeCover: false },
+    });
+    const title = canvas.context.calls.find(
+      (call) => call.name === "fillText" && String(call.args[0]).startsWith("超长视频标题："),
+    );
+    const styleMark = textCalls(canvas.context, "暖")[0];
+
+    expect(title).toBeDefined();
+    expect(title!.args[0]).not.toBe(videoTitle);
+    expect(String(title!.args[0])).toMatch(/…$/u);
+    expect(title!.args[2]).toBe(styleMark.args[2]);
+    expect(textBounds(title!).right).toBeLessThan(textBounds(styleMark).left);
+  });
+
+  it("keeps the local Bilibili mark without drawing substitute platform text when the video title is missing", async () => {
+    const { canvas, loadedUrls } = await render({
+      source: { videoTitle: undefined },
+      options: { includeCover: false },
+    });
+
+    expect(textCalls(canvas.context, "哔哩哔哩 · 评论")).toHaveLength(0);
     expect(canvas.context.calls.some(
       (call) => call.name === "drawImage" && (call.args[0] as FakeImage).tag === loadedUrls[0],
     )).toBe(true);

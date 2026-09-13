@@ -1,5 +1,6 @@
-import type { CardPreferences, CommentCardSource, GenerateOptions } from "../domain/types";
-import { createConfirmCard } from "./confirm-card";
+import type { CardPreferences, CardRatio, CommentCardSource, GenerateOptions } from "../domain/types";
+import { createExtensionPanel } from "./extension-panel";
+import type { PanelState } from "./panel-state";
 import overlayCss from "./overlay.css?inline";
 
 type StatusKind = "success" | "error" | "info";
@@ -15,9 +16,16 @@ export class OverlayRoot extends EventTarget {
   private host: HTMLElement | null = null;
   private root: ShadowRoot | null = null;
   private active = false;
-  private confirmation: { source: CommentCardSource; preferences: CardPreferences } | null = null;
+  private confirmation: { source: CommentCardSource; preferences: CardPreferences; originalContent: string } | null = null;
   private status: Status | null = null;
   private generationBusy = false;
+  private saveBusy = false;
+  private panelState: PanelState = "editing";
+  private failureMessage: string | undefined;
+  private previewUrl: string | undefined;
+  private previewDimensions: string | undefined;
+  private previewRatio: CardRatio | undefined;
+  private savedDimensions: string | undefined;
   private destroyed = false;
 
   constructor(private readonly document: Document) {
@@ -46,7 +54,45 @@ export class OverlayRoot extends EventTarget {
 
   showConfirm(source: CommentCardSource, preferences: CardPreferences): void {
     if (this.destroyed) return;
-    this.confirmation = { source, preferences };
+    this.confirmation = { source, preferences, originalContent: source.content };
+    this.panelState = "editing";
+    this.previewUrl = undefined;
+    this.previewDimensions = undefined;
+    this.previewRatio = undefined;
+    this.savedDimensions = undefined;
+    this.failureMessage = undefined;
+    this.status = null;
+    this.render();
+  }
+
+  showGenerated(previewUrl?: string, dimensions?: string, ratio?: CardRatio): void {
+    if (this.destroyed || !this.confirmation) return;
+    this.panelState = "generated";
+    this.previewUrl = previewUrl;
+    this.previewDimensions = dimensions;
+    this.previewRatio = ratio;
+    this.failureMessage = undefined;
+    this.status = null;
+    this.render();
+  }
+
+  showFailed(message: string): void {
+    if (this.destroyed || !this.confirmation) return;
+    this.panelState = "failed";
+    this.failureMessage = message;
+    this.status = null;
+    this.render();
+  }
+
+  showSaved(dimensions: string): void {
+    if (this.destroyed || !this.confirmation) return;
+    this.panelState = "saved";
+    this.previewUrl = undefined;
+    this.previewDimensions = undefined;
+    this.previewRatio = undefined;
+    this.savedDimensions = dimensions;
+    this.failureMessage = undefined;
+    this.status = null;
     this.render();
   }
 
@@ -65,6 +111,14 @@ export class OverlayRoot extends EventTarget {
   setGenerationBusy(busy: boolean): void {
     if (this.destroyed || this.generationBusy === busy) return;
     this.generationBusy = busy;
+    if (busy && this.confirmation) this.panelState = "generating";
+    else if (!busy && this.panelState === "generating") this.panelState = "editing";
+    this.render();
+  }
+
+  setSaveBusy(busy: boolean): void {
+    if (this.destroyed || this.saveBusy === busy) return;
+    this.saveBusy = busy;
     this.render();
   }
 
@@ -77,19 +131,24 @@ export class OverlayRoot extends EventTarget {
     this.confirmation = null;
     this.status = null;
     this.generationBusy = false;
+    this.saveBusy = false;
+    this.savedDimensions = undefined;
+    this.failureMessage = undefined;
+    this.previewDimensions = undefined;
+    this.previewRatio = undefined;
   }
 
   private render(): void {
     if (!this.root || this.destroyed) return;
 
     this.root.innerHTML = `<style>${overlayCss}</style><div class="ccg-ui">
-      <button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>流光卡片核</span></button>
-      ${this.active ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
+      ${this.confirmation ? "" : `<button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>流光卡片核</span></button>`}
+      ${this.active && !this.confirmation ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
       <div class="ccg-panel-slot"></div>
       ${this.status ? `<div class="ccg-status ccg-status--${this.status.kind}" role="status"><span></span>${this.status.action === "retry-download" ? `<button type="button" aria-label="再次下载">再次下载</button>` : ""}<button type="button" aria-label="关闭提示">×</button></div>` : ""}
     </div>`;
 
-    (this.root.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).addEventListener("click", () => {
+    this.root.querySelector('[aria-label="开启评论选择"]')?.addEventListener("click", () => {
       this.emit("toggle-selection");
     });
     this.root.querySelector('[aria-label="退出评论选择"]')?.addEventListener("click", () => this.emit("exit-selection"));
@@ -104,29 +163,96 @@ export class OverlayRoot extends EventTarget {
     });
 
     if (!this.confirmation) return;
-    const card = createConfirmCard(this.document, this.confirmation.source, this.confirmation.preferences, {
-      onCancel: () => {
-        if (this.destroyed || this.generationBusy) return;
-        this.confirmation = null;
-        this.render();
-        this.emit("cancel-generate");
+    const confirmation = this.confirmation;
+    const shell = createExtensionPanel(
+      this.document,
+      {
+        state: this.panelState,
+        source: confirmation.source,
+        preferences: confirmation.preferences,
+        draftContent: confirmation.source.content,
+        errorMessage: this.failureMessage,
+        previewUrl: this.previewUrl,
+        previewInfo: this.panelState === "generated" && this.previewDimensions
+          ? {
+              ratio: this.previewRatio ?? confirmation.preferences.ratio,
+              dimensions: this.previewDimensions,
+            }
+          : undefined,
+        saveInfo: this.panelState === "saved"
+          ? { format: "PNG", dimensions: this.savedDimensions ?? "1200 × 1600", location: "本地下载" }
+          : undefined,
       },
-      onGenerate: (options) => {
-        if (this.destroyed || !this.confirmation || this.generationBusy) return;
-        this.emit("confirm-generate", { source: this.confirmation.source, options });
+      {
+        onClose: () => {
+          if (this.destroyed || this.generationBusy || this.saveBusy) return;
+          this.confirmation = null;
+          this.render();
+          this.emit("cancel-generate");
+        },
+        onDraftChange: (content) => {
+          if (!this.confirmation || this.destroyed) return;
+          this.confirmation.source = { ...this.confirmation.source, content };
+        },
+        onRestoreOriginal: () => {
+          if (!this.confirmation || this.destroyed) return;
+          this.confirmation.source = {
+            ...this.confirmation.source,
+            content: this.confirmation.originalContent,
+          };
+          this.render();
+        },
+        onPanelSkinChange: (panelSkin) => {
+          if (!this.confirmation || this.destroyed) return;
+          this.confirmation.preferences = { ...this.confirmation.preferences, panelSkin };
+          const panel = this.root?.querySelector(".ccg-extension-panel");
+          if (panel instanceof HTMLElement) {
+            panel.dataset.panelSkin = panelSkin;
+            panel.classList.toggle("ccg-extension-panel--classic-dark", panelSkin === "classic-dark");
+          }
+        },
+        onGenerate: (source, options) => {
+          if (this.destroyed || !this.confirmation || this.generationBusy) return;
+          const preferences = { ...this.confirmation.preferences, ...options };
+          this.confirmation = { ...this.confirmation, source, preferences };
+          this.emit("confirm-generate", { source, options: preferences });
+        },
+        onCancelGeneration: () => this.emit("cancel-generation"),
+        onRetryGeneration: () => this.emit("retry-generation"),
+        onReturnEditing: () => {
+          if (this.destroyed || !this.confirmation || this.saveBusy) return;
+          this.panelState = "editing";
+          this.savedDimensions = undefined;
+          this.render();
+          this.emit("return-editing");
+        },
+        onConfirmSave: () => this.emit("confirm-save"),
+        onCreateAnother: () => {
+          if (this.destroyed) return;
+          this.confirmation = null;
+          this.panelState = "editing";
+          this.savedDimensions = undefined;
+          this.render();
+          this.emit("create-another");
+        },
       },
-    });
-    this.root.querySelector(".ccg-panel-slot")!.append(card);
-    (card.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).disabled = this.generationBusy;
-    (card.querySelector('[aria-label="取消生成"]') as HTMLButtonElement).disabled = this.generationBusy;
+    );
+    this.root.querySelector(".ccg-panel-slot")!.append(shell);
+    const generate = shell.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement | null;
+    if (generate) generate.disabled = this.generationBusy;
+    const save = shell.querySelector('[aria-label="确认保存"]') as HTMLButtonElement | null;
+    if (save) save.disabled = this.saveBusy;
+    const returnEditing = shell.querySelector('[aria-label="返回修改"]') as HTMLButtonElement | null;
+    if (returnEditing) returnEditing.disabled = this.saveBusy;
+    (shell.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).disabled = this.generationBusy || this.saveBusy;
   }
 
   private emit(
-    type: "toggle-selection" | "exit-selection" | "cancel-generate" | "retry-download" | "cancel-download",
+    type: "toggle-selection" | "exit-selection" | "cancel-generate" | "retry-download" | "cancel-download" | "cancel-generation" | "retry-generation" | "return-editing" | "confirm-save" | "create-another",
   ): void;
   private emit(type: "confirm-generate", detail: { source: CommentCardSource; options: GenerateOptions }): void;
   private emit(
-    type: "toggle-selection" | "exit-selection" | "cancel-generate" | "confirm-generate" | "retry-download" | "cancel-download",
+    type: "toggle-selection" | "exit-selection" | "cancel-generate" | "confirm-generate" | "retry-download" | "cancel-download" | "cancel-generation" | "retry-generation" | "return-editing" | "confirm-save" | "create-another",
     detail?: { source: CommentCardSource; options: GenerateOptions },
   ): void {
     if (!this.destroyed) this.dispatchEvent(new CustomEvent(type, { detail }));

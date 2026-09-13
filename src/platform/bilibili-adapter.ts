@@ -14,7 +14,15 @@ const SELECTORS = {
   author: ["[data-testid='comment-author']", ".user-name", ".sub-user-name", "#user-name"],
   publishedAt: ["[data-testid='comment-time']", ".reply-time", ".sub-reply-time", "#pubdate"],
   cover: ["[data-testid='player-cover']", ".bpx-player-video-wrap img", ".bilibili-player-video img"],
+  videoTitle: ["h1.video-title", "#viewbox_report h1[title]", "[data-testid='video-title']"],
 } as const;
+
+function normalizeVideoTitle(value: string | null | undefined): string | undefined {
+  let title = value?.replace(/\s+/gu, " ").trim() ?? "";
+  const siteSuffix = /\s*(?:[_|—–-]\s*)?(?:哔哩哔哩|bilibili)\s*$/iu;
+  while (title && siteSuffix.test(title)) title = title.replace(siteSuffix, "").trim();
+  return title || undefined;
+}
 
 function findFirst(parent: ParentNode, selectors: readonly string[]): Element | null {
   for (const selector of selectors) {
@@ -124,6 +132,7 @@ export class BilibiliAdapter implements PlatformAdapter {
     const authorName = getNormalizedText(element, SELECTORS.author);
     const publishedAt = getNormalizedText(element, SELECTORS.publishedAt);
     const videoCoverUrl = this.getVideoCoverUrl();
+    const videoTitle = this.getVideoTitle();
 
     return {
       platform: this.platform,
@@ -131,7 +140,21 @@ export class BilibiliAdapter implements PlatformAdapter {
       authorName,
       ...(publishedAt ? { publishedAt } : {}),
       ...(videoCoverUrl ? { videoCoverUrl } : {}),
+      ...(videoTitle ? { videoTitle } : {}),
     };
+  }
+
+  private getVideoTitle(): string | undefined {
+    const metadataTitle = normalizeVideoTitle(
+      this.document.querySelector("meta[property='og:title']")?.getAttribute("content"),
+    );
+    if (metadataTitle) return metadataTitle;
+
+    const heading = findFirst(this.document, SELECTORS.videoTitle);
+    const headingTitle = normalizeVideoTitle(
+      heading?.getAttribute("title") || heading?.textContent,
+    );
+    return headingTitle ?? normalizeVideoTitle(this.document.title);
   }
 
   getVideoCoverUrl(): string | undefined {

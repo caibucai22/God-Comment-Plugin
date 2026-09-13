@@ -3,7 +3,7 @@ import type { PlatformAdapter, ResolvedCommentTarget } from "../platform/platfor
 import { CommentHighlight } from "./comment-highlight";
 import { deepElementFromPoint } from "./deep-element-from-point";
 
-export type SelectionExitReason = "escape" | "contextmenu" | "outside" | "hint" | "toggle";
+export type SelectionExitReason = "escape" | "contextmenu" | "outside" | "hint" | "toggle" | "panel-close";
 
 export interface SelectionState {
   active: boolean;

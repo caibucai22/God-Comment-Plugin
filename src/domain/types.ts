@@ -1,5 +1,6 @@
-export type CardStyle = "warm" | "history" | "sarcasm" | "sss";
-export type CardRatio = "3:4" | "9:16";
+export type CardStyle = "bilibili" | "warm" | "history" | "sarcasm" | "sss";
+export type CardRatio = "3:4" | "9:16" | "16:9";
+export type PanelSkin = "pixel" | "classic-dark";
 
 export interface CommentCardSource {
   platform: "bilibili";
@@ -7,6 +8,7 @@ export interface CommentCardSource {
   authorName?: string;
   publishedAt?: string;
   videoCoverUrl?: string;
+  videoTitle?: string;
 }
 
 export interface GenerateOptions {
@@ -14,6 +16,8 @@ export interface GenerateOptions {
   ratio: CardRatio;
   includeCover: boolean;
   gameDecoration: boolean;
+  includeAttributes?: boolean;
+  soundEnabled?: boolean;
 }
 
 export interface CardAttributes {
@@ -22,4 +26,6 @@ export interface CardAttributes {
   sarcasm: number;
 }
 
-export type CardPreferences = GenerateOptions;
+export interface CardPreferences extends GenerateOptions {
+  panelSkin?: PanelSkin;
+}

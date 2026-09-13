@@ -14,7 +14,7 @@ import {
   type SelectionState,
 } from "../../src/selection/selection-controller";
 import { OverlayRoot } from "../../src/ui/overlay-root";
-import { PngDownloadError, type RetainedPngDownload } from "../../src/export/export-service";
+import { PngDownloadError, type PngArtifact, type RetainedPngDownload } from "../../src/export/export-service";
 import {
   bootstrapContentApp,
   createContentApp,
@@ -118,8 +118,12 @@ function adapter(): PlatformAdapter {
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
-  return { promise, resolve };
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 function makeHarness(overrides: Partial<ContentAppDependencies> = {}) {
@@ -171,7 +175,7 @@ describe("content application composition", () => {
   });
 
   async function makeRealDomHarness(
-    overrides: Partial<Pick<ContentAppDependencies, "renderCard" | "exportPng">> = {},
+    overrides: Partial<ContentAppDependencies> = {},
   ) {
     document.body.innerHTML = '<div data-real-comment>真实评论节点</div>';
     const comment = document.querySelector("[data-real-comment]") as HTMLElement;
@@ -211,13 +215,16 @@ describe("content application composition", () => {
         return controller;
       },
       loadPreferences: async () => preferences,
-      savePreferences: async (input) => input,
+      savePreferences: overrides.savePreferences ?? (async (input) => input),
       generateAttributes: () => attributes,
       renderCard: overrides.renderCard ?? (async () => ({
         canvas: document.createElement("canvas"),
         coverFallbackUsed: false,
       })),
       exportPng: overrides.exportPng ?? (async () => undefined),
+      createPngArtifact: overrides.createPngArtifact,
+      downloadPngArtifact: overrides.downloadPngArtifact,
+      playGenerationSound: overrides.playGenerationSound,
       createFilename: () => "card.png",
     });
     if (!app || !overlay || !controller) throw new Error("real content app did not initialize");
@@ -298,16 +305,35 @@ describe("content application composition", () => {
     expect(harness.states.at(-1)?.reason).toBe("hint");
   });
 
-  it("keeps real selection active when confirmation is cancelled inside the overlay", async () => {
+  it("exits selection on panel close and restores native comment click and contextmenu handling", async () => {
     const harness = await makeRealDomHarness();
     (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
     harness.comment.click();
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
 
-    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]') as HTMLButtonElement).click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).click();
 
-    expect(harness.controller.active).toBe(true);
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).toBeNull();
+    expect(harness.controller.active).toBe(false);
+    expect(harness.states.at(-1)?.reason).toBe("panel-close");
+    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]')).toBeNull();
+
+    const nativeEvents: string[] = [];
+    harness.comment.addEventListener("click", () => nativeEvents.push("click"));
+    harness.comment.addEventListener("contextmenu", () => nativeEvents.push("contextmenu"));
+    const click = new MouseEvent("click", { bubbles: true, composed: true, cancelable: true });
+    const contextmenu = new MouseEvent("contextmenu", { bubbles: true, composed: true, cancelable: true });
+    harness.comment.dispatchEvent(click);
+    harness.comment.dispatchEvent(contextmenu);
+
+    expect(click.defaultPrevented).toBe(false);
+    expect(contextmenu.defaultPrevented).toBe(false);
+    expect(nativeEvents).toEqual(["click", "contextmenu"]);
+    expect(harness.overlay.shadowRoot!.querySelector(".ccg-extension-panel")).toBeNull();
+
+    const stateCount = harness.states.length;
+    harness.app.destroy();
+    harness.app.destroy();
+    expect(harness.states).toHaveLength(stateCount);
   });
 
   it("does not consume a context menu opened inside the real overlay", async () => {
@@ -322,48 +348,217 @@ describe("content application composition", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it("keeps current, retained, and programmatic cancel inert while real generation is busy", async () => {
+  it("waits at generated preview and downloads only after confirmation", async () => {
     const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
     const exporting = deferred<void>();
-    const exportPng = vi.fn(() => exporting.promise);
-    const harness = await makeRealDomHarness({ renderCard: () => rendering.promise, exportPng });
+    const exportPng = vi.fn(async () => undefined);
+    const artifact: PngArtifact = {
+      blob: new Blob(["png"]),
+      url: "blob:preview-card",
+      width: 1200,
+      height: 1600,
+      release: vi.fn(),
+    };
+    const createPngArtifact = vi.fn(async () => artifact);
+    const downloadPngArtifact = vi.fn(() => exporting.promise);
+    const harness = await makeRealDomHarness({
+      renderCard: () => rendering.promise,
+      exportPng,
+      createPngArtifact,
+      downloadPngArtifact,
+    });
     (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
     harness.comment.click();
-    const retainedCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="取消生成"]',
-    ) as HTMLButtonElement;
-
-    (harness.overlay.shadowRoot!.querySelector('[aria-label="生成卡片"]') as HTMLButtonElement).click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
     const renderingCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="取消生成"]',
+      '[aria-label="关闭制作面板"]',
     ) as HTMLButtonElement;
     expect(renderingCancel.disabled).toBe(true);
 
-    retainedCancel.click();
-    harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
+    const renderedCanvas = document.createElement("canvas");
+    renderedCanvas.width = 1200;
+    renderedCanvas.height = 1600;
+    rendering.resolve({ canvas: renderedCanvas, coverFallbackUsed: false });
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
+    });
+    expect((harness.overlay.shadowRoot!.querySelector('[alt="生成的评论卡片预览"]') as HTMLImageElement).src).toBe("blob:preview-card");
+    expect(harness.overlay.shadowRoot!.textContent).toContain("1200 × 1600");
+    expect(exportPng).not.toHaveBeenCalled();
+    expect(downloadPngArtifact).not.toHaveBeenCalled();
     expect(harness.controller.active).toBe(true);
 
-    rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
-    await vi.waitFor(() => expect(exportPng).toHaveBeenCalledOnce());
-    const exportingCancel = harness.overlay.shadowRoot!.querySelector(
-      '[aria-label="取消生成"]',
-    ) as HTMLButtonElement;
-    expect(exportingCancel.disabled).toBe(true);
-
-    exportingCancel.click();
-    harness.overlay.dispatchEvent(new CustomEvent("cancel-generate"));
-    expect(harness.overlay.shadowRoot!.querySelector('[aria-label="取消生成"]')).not.toBeNull();
-    expect(harness.controller.active).toBe(true);
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(downloadPngArtifact).toHaveBeenCalledWith(artifact, "card.png"));
+    expect((harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((harness.overlay.shadowRoot!.querySelector('[aria-label="返回修改"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(harness.controller.active).toBe(false);
 
     exporting.resolve();
     await settle();
-    expect(exportPng).toHaveBeenCalledOnce();
+    expect(exportPng).not.toHaveBeenCalled();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]')).not.toBeNull();
     expect(harness.controller.active).toBe(false);
     expect(harness.states.at(-1)?.reason).toBe("toggle");
   });
 
-  it("shows the already-extracted source with current preferences and cancel preserves active selection", async () => {
+  it("releases the pending preview artifact when the generated panel is closed", async () => {
+    const artifact: PngArtifact = {
+      blob: new Blob(["png"]),
+      url: "blob:preview-to-close",
+      width: 1200,
+      height: 1600,
+      release: vi.fn(),
+    };
+    const harness = await makeRealDomHarness({
+      createPngArtifact: async () => artifact,
+      downloadPngArtifact: async () => undefined,
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
+    });
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).click();
+
+    expect(artifact.release).toHaveBeenCalledOnce();
+    expect(harness.overlay.shadowRoot!.querySelector(".ccg-extension-panel")).toBeNull();
+  });
+
+  it("returns to editing when an in-flight generation is cancelled", async () => {
+    const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
+    const harness = await makeRealDomHarness({ renderCard: () => rendering.promise });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
+
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
+    rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
+    await settle();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).toBeNull();
+  });
+
+  it("ignores a cancelled render that later rejects", async () => {
+    const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
+    const renderCard = vi.fn(() => rendering.promise);
+    const harness = await makeRealDomHarness({ renderCard });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(renderCard).toHaveBeenCalledOnce());
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
+
+    rendering.reject(new Error("late render failure"));
+    await settle();
+
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="failed"]')).toBeNull();
+  });
+
+  it("keeps a newly selected comment when the previous render finishes late", async () => {
+    const rendering = deferred<{ canvas: HTMLCanvasElement; coverFallbackUsed: boolean }>();
+    const renderCard = vi.fn(() => rendering.promise);
+    const exportPng = vi.fn(async () => undefined);
+    const harness = makeHarness({ renderCard, exportPng });
+    await createContentApp(harness.dependencies);
+    harness.overlay.emit("toggle-selection");
+    harness.controller.select(source);
+    harness.overlay.emit("confirm-generate", { source, options: generatedOptions });
+    await vi.waitFor(() => expect(renderCard).toHaveBeenCalledOnce());
+    const replacement = { ...source, content: "新选择的评论" };
+    harness.controller.select(replacement);
+
+    rendering.resolve({ canvas: document.createElement("canvas"), coverFallbackUsed: false });
+    await settle();
+
+    expect(harness.overlay.confirmations.at(-1)?.source).toEqual(replacement);
+    expect(harness.overlay.busyStates).toEqual([true, false]);
+    expect(exportPng).not.toHaveBeenCalled();
+  });
+
+  it("ignores an artifact creation failure that arrives after cancellation", async () => {
+    const artifactCreation = deferred<PngArtifact>();
+    const createPngArtifact = vi.fn(() => artifactCreation.promise);
+    const harness = await makeRealDomHarness({
+      createPngArtifact,
+      downloadPngArtifact: async () => undefined,
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(createPngArtifact).toHaveBeenCalledOnce());
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="取消制作"]') as HTMLButtonElement).click();
+
+    artifactCreation.reject(new Error("late artifact failure"));
+    await settle();
+
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="editing"]')).not.toBeNull();
+    expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="failed"]')).toBeNull();
+  });
+
+  it("moves a successful retained-download retry from generated to saved", async () => {
+    const retained: RetainedPngDownload = {
+      retry: vi.fn(async () => undefined),
+      release: vi.fn(),
+    };
+    const artifact: PngArtifact = {
+      blob: new Blob(["png"]),
+      url: "blob:retry-preview",
+      width: 1920,
+      height: 1080,
+      release: vi.fn(),
+    };
+    const renderedCanvas = document.createElement("canvas");
+    renderedCanvas.width = 1920;
+    renderedCanvas.height = 1080;
+    const harness = await makeRealDomHarness({
+      renderCard: async () => ({ canvas: renderedCanvas, coverFallbackUsed: false }),
+      createPngArtifact: async () => artifact,
+      downloadPngArtifact: async () => { throw new PngDownloadError("download failed", retained); },
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="generated"]')).not.toBeNull();
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="确认保存"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('[aria-label="再次下载"]')).not.toBeNull();
+    });
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="再次下载"]') as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="saved"]')).not.toBeNull();
+    });
+    expect(harness.overlay.shadowRoot!.textContent).toContain("1920 × 1080");
+    expect(retained.retry).toHaveBeenCalledOnce();
+    expect(harness.controller.active).toBe(false);
+  });
+
+  it("shows the failed state when PNG artifact creation fails", async () => {
+    const harness = await makeRealDomHarness({
+      createPngArtifact: async () => { throw new Error("blob failed"); },
+      downloadPngArtifact: async () => undefined,
+    });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(harness.overlay.shadowRoot!.querySelector('.ccg-extension-panel[data-panel-state="failed"]')).not.toBeNull();
+    });
+    expect(harness.overlay.shadowRoot!.textContent).toContain("卡片生成失败");
+  });
+
+  it("shows the already-extracted source with current preferences and panel close exits selection", async () => {
     const harness = makeHarness();
     await createContentApp(harness.dependencies);
     harness.overlay.emit("toggle-selection");
@@ -372,12 +567,12 @@ describe("content application composition", () => {
     harness.overlay.emit("cancel-generate");
 
     expect(harness.overlay.confirmations).toEqual([{ source, preferences }]);
-    expect(harness.controller.active).toBe(true);
-    expect(harness.controller.exits).toEqual([]);
-    expect(harness.overlay.selectionStates.at(-1)).toBe(true);
+    expect(harness.controller.active).toBe(false);
+    expect(harness.controller.exits).toEqual(["panel-close"]);
+    expect(harness.overlay.selectionStates.at(-1)).toBe(false);
   });
 
-  it("saves exactly four preferences then generates attributes, renders, exports, completes, and exits", async () => {
+  it("saves production preferences then generates, renders, exports, completes, and exits", async () => {
     const order: string[] = [];
     const saved: CardPreferences[] = [];
     const renderInputs: unknown[] = [];
@@ -407,9 +602,18 @@ describe("content application composition", () => {
     await settle();
 
     expect(order).toEqual(["save", "attributes", "render", "export"]);
-    expect(saved).toEqual([{ ...generatedOptions }]);
-    expect(Object.keys(saved[0]).sort()).toEqual(["gameDecoration", "includeCover", "ratio", "style"]);
-    expect(renderInputs).toEqual([{ source, options: generatedOptions, attributes }]);
+    const exactOptions = { ...generatedOptions, includeAttributes: false, soundEnabled: false, panelSkin: "pixel" };
+    expect(saved).toEqual([exactOptions]);
+    expect(Object.keys(saved[0]).sort()).toEqual([
+      "gameDecoration",
+      "includeAttributes",
+      "includeCover",
+      "panelSkin",
+      "ratio",
+      "soundEnabled",
+      "style",
+    ]);
+    expect(renderInputs).toEqual([{ source, options: exactOptions, attributes }]);
     expect(exportInputs).toEqual([{
       canvas: harness.canvas,
       filename: "神评卡片-bilibili-20260815-123456.png",
@@ -417,6 +621,86 @@ describe("content application composition", () => {
     expect(harness.overlay.statuses.at(-1)).toEqual({ kind: "success", message: "卡片已保存" });
     expect(harness.controller.exits).toEqual(["toggle"]);
     expect(harness.overlay.busyStates).toEqual([true, false]);
+  });
+
+  it("preserves an adapter video title through confirmation and card rendering", async () => {
+    const titledSource = { ...source, videoTitle: "来自 B站页面的真实视频标题" };
+    const renderCard = vi.fn(async () => ({ canvas: document.createElement("canvas"), coverFallbackUsed: false }));
+    const harness = makeHarness({ renderCard });
+    await createContentApp(harness.dependencies);
+    harness.overlay.emit("toggle-selection");
+
+    harness.controller.select(titledSource);
+    harness.overlay.emit("confirm-generate", { source: titledSource, options: generatedOptions });
+    await settle();
+
+    expect(harness.overlay.confirmations).toEqual([{ source: titledSource, preferences }]);
+    expect(renderCard).toHaveBeenCalledWith(expect.objectContaining({ source: titledSource }));
+  });
+
+  it("plays enabled generation sound exactly once under reduced motion and persists every exact preference", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    const playGenerationSound = vi.fn();
+    const savePreferences = vi.fn(async (input: CardPreferences) => input);
+    const renderCard = vi.fn(async () => ({ canvas: document.createElement("canvas"), coverFallbackUsed: false }));
+    const harness = await makeRealDomHarness({ playGenerationSound, savePreferences, renderCard });
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement).click();
+    harness.comment.click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="更多选项设置"]') as HTMLButtonElement).click();
+    (harness.overlay.shadowRoot!.querySelector('[aria-label="播放制作声效"]') as HTMLInputElement).click();
+    (harness.overlay.shadowRoot!.querySelector('input[name="ccg-panel-skin"][value="classic-dark"]') as HTMLInputElement).click();
+    const generate = harness.overlay.shadowRoot!.querySelector('[aria-label="制作卡片"]') as HTMLButtonElement;
+
+    generate.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    generate.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await settle();
+
+    const exactPreferences: CardPreferences = {
+      style: "history",
+      ratio: "9:16",
+      includeCover: true,
+      includeAttributes: false,
+      gameDecoration: false,
+      soundEnabled: true,
+      panelSkin: "classic-dark",
+    };
+    expect(playGenerationSound).toHaveBeenCalledOnce();
+    expect(savePreferences).toHaveBeenCalledWith(exactPreferences);
+    expect(renderCard).toHaveBeenCalledWith(expect.objectContaining({ options: exactPreferences }));
+  });
+
+  it("keeps generation non-blocking when enabled sound playback throws or rejects", async () => {
+    for (const playGenerationSound of [
+      vi.fn(() => { throw new Error("audio constructor failed"); }),
+      vi.fn(() => Promise.reject(new Error("audio resume failed"))),
+    ]) {
+      const renderCard = vi.fn(async () => ({ canvas: document.createElement("canvas"), coverFallbackUsed: false }));
+      const harness = makeHarness({ playGenerationSound, renderCard });
+      await createContentApp(harness.dependencies);
+      harness.overlay.emit("confirm-generate", {
+        source,
+        options: { ...generatedOptions, soundEnabled: true },
+      });
+      await settle();
+
+      expect(playGenerationSound).toHaveBeenCalledOnce();
+      expect(renderCard).toHaveBeenCalledOnce();
+      expect(harness.overlay.statuses.at(-1)).toEqual({ kind: "success", message: "卡片已保存" });
+    }
+  });
+
+  it("does not request generation sound when the preference is disabled", async () => {
+    const playGenerationSound = vi.fn();
+    const harness = makeHarness({ playGenerationSound });
+    await createContentApp(harness.dependencies);
+
+    harness.overlay.emit("confirm-generate", {
+      source,
+      options: { ...generatedOptions, soundEnabled: false },
+    });
+    await settle();
+
+    expect(playGenerationSound).not.toHaveBeenCalled();
   });
 
   it("includes the no-cover degradation in the user-perceivable success message", async () => {
@@ -493,7 +777,7 @@ describe("content application composition", () => {
     expect(renderCard).toHaveBeenCalledOnce();
     expect(exportPng).toHaveBeenCalledOnce();
     expect(harness.overlay.statuses.at(-1)).toEqual({ kind: "success", message: "卡片已保存" });
-    expect(harness.controller.exits).toEqual(["toggle"]);
+    expect(harness.controller.exits).toEqual(["toggle", "toggle"]);
   });
 
   it("does not complete or restore a retained download after retry is cancelled in flight", async () => {
@@ -518,7 +802,7 @@ describe("content application composition", () => {
     expect(retained.release).toHaveBeenCalledOnce();
     expect(harness.overlay.statuses.some((status) => status.kind === "success")).toBe(false);
     expect(harness.controller.active).toBe(true);
-    expect(harness.controller.exits).toEqual([]);
+    expect(harness.controller.exits).toEqual(["toggle", "toggle"]);
   });
 
   it("releases retained downloads on replacement, cancel, status dismissal, and idempotent destroy", async () => {

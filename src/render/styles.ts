@@ -56,6 +56,22 @@ type ThemeDefinition = Omit<CardStyleTokens, "badge" | "energyLines" | "extraPar
 };
 
 const themes: Record<CardStyle, ThemeDefinition> = {
+  bilibili: {
+    background: { colors: ["#eef7ff", "#d8ebff", "#fff1f6"], angle: 145 },
+    border: { colors: ["#fb7299", "#69c9d0"], angle: 45 },
+    bodyText: "#18191c",
+    metadataText: "#61666d",
+    accent: "#fb7299",
+    particleColors: ["#fb7299", "#69c9d0", "#ffffff"],
+    texture: { kind: "paper-grain", color: "#69c9d0", opacity: 0.08 },
+    mark: null,
+    baseParticles: [{ shape: "dot", color: "#fb7299", opacity: 0.28, size: 3 }],
+    gameDecoration: {
+      badge: { label: "B站神评", color: "#fb7299", textColor: "#ffffff" },
+      energyLines: [{ color: "#69c9d0", opacity: 0.34, angle: 25 }],
+      extraParticles: [{ shape: "star", color: "#fb7299", opacity: 0.48, size: 4 }],
+    },
+  },
   warm: {
     background: { colors: ["#fff7e8", "#f8d9c4", "#efd0d8"], angle: 135 },
     border: { colors: ["#d9976f", "#edb6a8"], angle: 45 },

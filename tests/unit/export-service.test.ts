@@ -48,6 +48,52 @@ describe("PNG export service", () => {
     );
   });
 
+  it("creates a preview artifact without downloading and releases it explicitly", async () => {
+    const urls = makeUrlHarness();
+    const download = vi.fn(() => Promise.resolve(1));
+    const service = createExportService({
+      document,
+      createObjectURL: urls.createObjectURL,
+      revokeObjectURL: urls.revokeObjectURL,
+      chrome: { downloads: { download } },
+    });
+    const { canvas } = canvasWith(new Blob(["png"]));
+    Object.defineProperties(canvas, {
+      width: { value: 1200 },
+      height: { value: 1600 },
+    });
+
+    const artifact = await service.createPngArtifact(canvas);
+
+    expect(artifact).toMatchObject({ url: "blob:card-1", width: 1200, height: 1600 });
+    expect(download).not.toHaveBeenCalled();
+    expect(urls.revoked).toEqual([]);
+
+    artifact.release();
+    artifact.release();
+    expect(urls.revoked).toEqual(["blob:card-1"]);
+  });
+
+  it("downloads an existing preview artifact and revokes it after acceptance", async () => {
+    const urls = makeUrlHarness();
+    const download = vi.fn(() => Promise.resolve(1));
+    const service = createExportService({
+      document,
+      createObjectURL: urls.createObjectURL,
+      revokeObjectURL: urls.revokeObjectURL,
+      chrome: { downloads: { download } },
+    });
+    const artifact = await service.createPngArtifact(canvasWith(new Blob(["png"])).canvas);
+
+    await service.downloadPngArtifact(artifact, "card.png");
+
+    expect(download).toHaveBeenCalledWith(
+      { url: "blob:card-1", filename: "card.png", saveAs: true },
+      expect.any(Function),
+    );
+    expect(urls.revoked).toEqual(["blob:card-1"]);
+  });
+
   it("pads years below 1000 to exactly four digits", () => {
     const date = new Date(0);
     date.setFullYear(7, 0, 2);
@@ -76,7 +122,7 @@ describe("PNG export service", () => {
     const { canvas, mimeTypes } = canvasWith(new Blob(["png"]));
     const exporting = service.exportPng(canvas, "card.png");
 
-    await Promise.resolve();
+    await vi.waitFor(() => expect(downloads).toHaveLength(1));
     expect(mimeTypes).toEqual(["image/png"]);
     expect(downloads).toEqual([{ url: "blob:card-1", filename: "card.png", saveAs: true }]);
     expect(urls.revoked).toEqual([]);
@@ -104,7 +150,7 @@ describe("PNG export service", () => {
     });
 
     const exporting = service.exportPng(canvasWith(new Blob(["png"])).canvas, "callback.png");
-    await Promise.resolve();
+    await vi.waitFor(() => expect(acceptDownload).toBeTypeOf("function"));
     expect(urls.revoked).toEqual([]);
 
     acceptDownload?.();

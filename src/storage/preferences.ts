@@ -1,10 +1,13 @@
-import type { CardPreferences, CardRatio, CardStyle } from "../domain/types";
+import type { CardPreferences, CardRatio, CardStyle, PanelSkin } from "../domain/types";
 
 export const DEFAULT_PREFERENCES: CardPreferences = {
-  style: "warm",
+  style: "bilibili",
   ratio: "3:4",
   includeCover: true,
   gameDecoration: false,
+  includeAttributes: false,
+  soundEnabled: false,
+  panelSkin: "pixel",
 };
 
 type StoredValue = Record<string, unknown>;
@@ -18,11 +21,15 @@ interface StorageArea extends StorageReader {
 }
 
 function isCardStyle(value: unknown): value is CardStyle {
-  return value === "warm" || value === "history" || value === "sarcasm" || value === "sss";
+  return value === "bilibili" || value === "warm" || value === "history" || value === "sarcasm" || value === "sss";
 }
 
 function isCardRatio(value: unknown): value is CardRatio {
-  return value === "3:4" || value === "9:16";
+  return value === "3:4" || value === "9:16" || value === "16:9";
+}
+
+function isPanelSkin(value: unknown): value is PanelSkin {
+  return value === "pixel" || value === "classic-dark";
 }
 
 function normalizePreferences(value: unknown): CardPreferences {
@@ -37,6 +44,13 @@ function normalizePreferences(value: unknown): CardPreferences {
       typeof stored.gameDecoration === "boolean"
         ? stored.gameDecoration
         : DEFAULT_PREFERENCES.gameDecoration,
+    includeAttributes:
+      typeof stored.includeAttributes === "boolean"
+        ? stored.includeAttributes
+        : DEFAULT_PREFERENCES.includeAttributes,
+    soundEnabled:
+      typeof stored.soundEnabled === "boolean" ? stored.soundEnabled : DEFAULT_PREFERENCES.soundEnabled,
+    panelSkin: isPanelSkin(stored.panelSkin) ? stored.panelSkin : DEFAULT_PREFERENCES.panelSkin,
   };
 }
 
@@ -68,7 +82,15 @@ export async function loadPreferences(): Promise<CardPreferences> {
 
   try {
     return normalizePreferences(
-      await storage.get(["style", "ratio", "includeCover", "gameDecoration"]),
+      await storage.get([
+        "style",
+        "ratio",
+        "includeCover",
+        "gameDecoration",
+        "includeAttributes",
+        "soundEnabled",
+        "panelSkin",
+      ]),
     );
   } catch {
     return { ...DEFAULT_PREFERENCES };
