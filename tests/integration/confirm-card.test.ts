@@ -33,13 +33,17 @@ describe("OverlayRoot confirmation card", () => {
     return overlay;
   }
 
-  it("renders an editable comment and all five card styles in the shared panel", () => {
+  it("renders an editable comment with every approved style and ratio in the shared panel", () => {
     const overlay = openConfirm();
     const root = overlay.shadowRoot!;
 
     expect((root.querySelector('[aria-label="评论文字"]') as HTMLTextAreaElement).value).toBe(source.content);
     expect(root.querySelectorAll('input[name="ccg-style"]')).toHaveLength(5);
-    expect(root.querySelectorAll('input[name="ccg-ratio"]')).toHaveLength(2);
+    expect(Array.from(root.querySelectorAll<HTMLInputElement>('input[name="ccg-ratio"]')).map((input) => input.value)).toEqual([
+      "3:4",
+      "9:16",
+      "16:9",
+    ]);
     expect(root.querySelector('[aria-label="关闭制作面板"]')).not.toBeNull();
     expect(root.querySelector('[aria-label="制作卡片"]')).not.toBeNull();
     expect(root.querySelector('[aria-label="包含视频封面"]')).not.toBeNull();

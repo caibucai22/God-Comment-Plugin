@@ -1,4 +1,4 @@
-import type { CardPreferences, CommentCardSource } from "../domain/types";
+import type { CardPreferences, CardRatio, CommentCardSource } from "../domain/types";
 
 export type PanelState = "editing" | "generating" | "failed" | "generated" | "saved";
 
@@ -10,7 +10,7 @@ export interface PanelViewModel {
   readonly errorMessage?: string;
   readonly previewUrl?: string;
   readonly previewInfo?: {
-    readonly ratio: "3:4" | "16:9";
+    readonly ratio: CardRatio;
     readonly dimensions: string;
   };
   readonly progress?: number;

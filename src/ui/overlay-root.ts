@@ -1,4 +1,4 @@
-import type { CardPreferences, CommentCardSource, GenerateOptions } from "../domain/types";
+import type { CardPreferences, CardRatio, CommentCardSource, GenerateOptions } from "../domain/types";
 import { createExtensionPanel } from "./extension-panel";
 import type { PanelState } from "./panel-state";
 import overlayCss from "./overlay.css?inline";
@@ -24,7 +24,7 @@ export class OverlayRoot extends EventTarget {
   private failureMessage: string | undefined;
   private previewUrl: string | undefined;
   private previewDimensions: string | undefined;
-  private previewRatio: "3:4" | "16:9" | undefined;
+  private previewRatio: CardRatio | undefined;
   private savedDimensions: string | undefined;
   private destroyed = false;
 
@@ -65,7 +65,7 @@ export class OverlayRoot extends EventTarget {
     this.render();
   }
 
-  showGenerated(previewUrl?: string, dimensions?: string, ratio?: "3:4" | "16:9"): void {
+  showGenerated(previewUrl?: string, dimensions?: string, ratio?: CardRatio): void {
     if (this.destroyed || !this.confirmation) return;
     this.panelState = "generated";
     this.previewUrl = previewUrl;
@@ -175,7 +175,7 @@ export class OverlayRoot extends EventTarget {
         previewUrl: this.previewUrl,
         previewInfo: this.panelState === "generated" && this.previewDimensions
           ? {
-              ratio: this.previewRatio ?? (confirmation.preferences.ratio === "16:9" ? "16:9" : "3:4"),
+              ratio: this.previewRatio ?? confirmation.preferences.ratio,
               dimensions: this.previewDimensions,
             }
           : undefined,

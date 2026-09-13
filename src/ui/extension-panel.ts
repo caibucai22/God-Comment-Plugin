@@ -164,7 +164,7 @@ function renderEditing(
     "style",
     "样式设置",
     false,
-    `${styleNames[model.preferences.style]} · ${model.preferences.ratio === "16:9" ? "16:9" : "3:4"}`,
+    `${styleNames[model.preferences.style]} · ${model.preferences.ratio}`,
   );
   const morePanel = accordionSection(document, content, "more", "更多选项", false, moreSummary);
   const meta = document.createElement("p");
@@ -206,8 +206,9 @@ function renderEditing(
   ], model.preferences.style);
   radioGroup<CardRatio>(document, stylePanel, "ccg-ratio", "卡片比例", [
     { value: "3:4", label: "3:4" },
+    { value: "9:16", label: "9:16 竖版" },
     { value: "16:9", label: "16:9 横版" },
-  ], model.preferences.ratio === "16:9" ? "16:9" : "3:4");
+  ], model.preferences.ratio);
 
   const includeCover = switchControl(document, morePanel, "包含视频封面", Boolean(model.source.videoCoverUrl) && model.preferences.includeCover);
   includeCover.disabled = !model.source.videoCoverUrl;
@@ -252,7 +253,7 @@ function renderEditing(
       input.checked = input.value === model.preferences.style;
     });
     content.querySelectorAll<HTMLInputElement>('input[name="ccg-ratio"]').forEach((input) => {
-      input.checked = input.value === (model.preferences.ratio === "16:9" ? "16:9" : "3:4");
+      input.checked = input.value === model.preferences.ratio;
     });
     includeCover.checked = Boolean(model.source.videoCoverUrl) && model.preferences.includeCover;
     includeAttributes.checked = model.preferences.includeAttributes ?? false;
@@ -381,7 +382,7 @@ function appendStateContent(
       previewMeta.className = "ccg-preview-meta";
       previewMeta.textContent = model.previewInfo
         ? `预览比例：${model.previewInfo.ratio}　${model.previewInfo.dimensions}`
-        : `预览比例：${model.preferences.ratio === "16:9" ? "16:9" : "3:4"}`;
+        : `预览比例：${model.preferences.ratio}`;
       content.append(previewMeta);
       const back = button(document, "返回修改", "返回修改");
       const save = button(document, "确认保存", "确认保存");

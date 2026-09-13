@@ -1,5 +1,6 @@
 import { generateAttributes as defaultGenerateAttributes } from "../attributes/generator";
 import type {
+  CardRatio,
   CardAttributes,
   CardPreferences,
   CommentCardSource,
@@ -44,7 +45,7 @@ export interface ContentOverlay {
   showDownloadRetry(message: string): void;
   setGenerationBusy(busy: boolean): void;
   setSaveBusy?(busy: boolean): void;
-  showGenerated?(previewUrl?: string, dimensions?: string, ratio?: "3:4" | "16:9"): void;
+  showGenerated?(previewUrl?: string, dimensions?: string, ratio?: CardRatio): void;
   showFailed?(message: string): void;
   showSaved?(dimensions: string): void;
 }
@@ -236,7 +237,7 @@ export async function createContentApp(
         overlay.showGenerated(
           pendingArtifact?.url,
           `${rendered.canvas.width} × ${rendered.canvas.height}`,
-          options.ratio === "16:9" ? "16:9" : "3:4",
+          options.ratio,
         );
       }
       else await handleConfirmSave(true);
