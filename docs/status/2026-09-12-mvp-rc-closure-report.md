@@ -4,17 +4,17 @@
 
 ## 结论
 
-**CONDITIONAL PASS**。Gate A、B、C 均通过，未发现开放 P0/P1；Gate D 只继承了具名的历史真实 B站主流程与 editing 截图证据。本轮没有可调用 Chrome MCP，未执行新的真实页面会话；入口唯一性、回复卡片内容边界、五状态逐态、正文修改/恢复原文、样式/更多摘要一致、9:16/16:9、确认前下载、125% 缩放、关闭恢复和隐私等真实站点项目仍为 `NOT RUN`。依据 [RC Spec](../superpowers/specs/2026-09-12-mvp-release-candidate-closure-design.md) 的判定规则，结论不得高于 `CONDITIONAL PASS`。
+**CONDITIONAL PASS**。final review 的 7 个 Important 与 README Minor 已在产品提交 `e3f9c761e0cae79206769b15d36b4c6f2e3c08f0` 关闭，fresh Gate A、B 均通过，既有 Gate C 证据仍有效，当前开放 P0/P1 为 0。Gate D 只继承了具名的历史真实 B站主流程与 editing 截图证据；本轮没有可调用 Chrome MCP，未执行新的真实页面会话。入口唯一性、回复卡片内容边界、五状态逐态、正文修改/恢复原文、样式/更多摘要一致、9:16/16:9、确认前下载、125% 缩放、关闭恢复和隐私等真实站点项目仍为 `NOT RUN`。依据 [RC Spec](../superpowers/specs/2026-09-12-mvp-release-candidate-closure-design.md) 的判定规则，结论不得高于 `CONDITIONAL PASS`。
 
 ## 环境与可追溯性
 
 | 字段 | 值 |
 | --- | --- |
-| 产品代码提交 | `f6fac0417e3fbbfecff4eda68513df8a675c4a8f`（`fix: persist approved 9:16 ratio`） |
+| 产品代码提交 | `e3f9c761e0cae79206769b15d36b4c6f2e3c08f0`（`fix: close final RC review gaps`） |
 | 工作目录 | `E:\03-Projects\AiProjects\CommentCardGen-Codex\.worktrees\pixel-perfect-panel-state-machine` |
 | 平台 | Windows native / PowerShell 7.6.6 |
 | Node | `v22.22.2`，仅通过 `scripts/windows-node-env.ps1` 初始化 |
-| 最终受保护门禁日志 | `.superpowers/logs/release-gates_执行命令说明_20260913_105954_142_82469583b0494d8bbc966f05137884e8.log` |
+| 最终受保护门禁日志 | `.superpowers/logs/release-gates_执行命令说明_20260913_152033_211_57d7c4a6a6fa4a5c83c516759379f9c3.log` |
 | 五态视觉运行日志 | `.superpowers/logs/task-4_visual-qa_执行命令说明_20260913_105656_186_ce0ec85ee1144ff5a91327c81af5afa8.log` |
 | 五态 fixture artifact | `.superpowers/visual-qa/round-mvp-rc-20260913_105656_186-bc892c77b93e4ba48bb61c9322c291fd/` |
 
@@ -26,20 +26,32 @@
 | --- | --- | --- |
 | MV3、唯一 B站 video match、精确 permissions、无 `host_permissions` | `PASS` | 最终门禁 audit JSON：`manifestVersion: 3`、`matches: [["https://www.bilibili.com/video/*"]]`、`permissions: ["storage","downloads"]` |
 | manifest/content script/像素素材非空 | `PASS` | audit 记录 12 个 required files；`manifest.json` 979 bytes，content loader 341 bytes，10 个素材均非空 |
-| 外部上传/遥测/网络 sink 审计 | `PASS` | `forbiddenPatternFindings: []` |
+| 外部上传/遥测/网络 sink 审计 | `PASS` | `forbiddenPatternFindings: []`；AST 审计同时拒绝 fetch.bind、解构/变量/赋值 alias、动态全局 sink 与非白名单 Image beacon |
 
 ## Gate B — Deterministic Automated Regression
 
 | 检查 | 结果 | 精确当前计数 |
 | --- | --- | --- |
-| Vitest | `PASS` | 16 files / 183 passed |
+| Vitest | `PASS` | 17 files / 216 passed |
 | TypeScript | `PASS` | `tsc --noEmit` exit 0 |
 | Vite production build | `PASS` | Vite 7.3.6，production `dist` 已恢复 |
 | Production package audit | `PASS` | audit JSON findings 0 |
-| Playwright | `PASS` | 13 passed / 1 skipped；跳过的是未设置 `CCG_VISUAL_QA_ROUND` 时的显式 artifact 测试 |
+| Playwright | `PASS` | 14 passed / 1 skipped；跳过的是未设置 `CCG_VISUAL_QA_ROUND` 时的显式 artifact 测试 |
 | Git diff check | `PASS` | `git diff --check master...HEAD` exit 0 |
 
-Gate B 覆盖的 fixture 行为包括五态几何与语义、3:4/9:16/16:9 PNG IHDR、确认保存前零下载、失败恢复、忙时重复保存去重、选择退出、reduced motion、默认回复与高亮连续性。它们不构成真实 B站验收。
+Gate B 覆盖的 fixture 行为包括五态几何与语义、3:4/9:16/16:9 PNG IHDR、确认保存前零下载、失败恢复、忙时重复保存去重、Panel 关闭退出 selection 并恢复 click/contextmenu、完整编辑 draft 保留、属性开关与正文居中、视频标题全链路、可注入 WebAudio、pixel/classic-dark 皮肤、reduced motion、默认回复与高亮连续性。它们不构成真实 B站验收。
+
+## Final review closure
+
+| 项目 | 结果 | 自动化边界 |
+| --- | --- | --- |
+| Panel 关闭恢复原生交互 | `PASS` | integration 断言明确 `panel-close` reason、controller inactive、click/contextmenu 未被阻止，重复 destroy 安全 |
+| 编辑正文与 7 项偏好跨状态保留 | `PASS` | generating/failed/generated 返回或取消矩阵覆盖；confirmation 是单一 draft 来源 |
+| attributes 条件布局与正文居中 | `PASS` | attributes on/off draw calls、正文空间，以及长/短正文不与昵称、时间、属性重叠 |
+| B站视频标题 adapter→content→renderer | `PASS` | 标题候选优先级、缺失 fallback、单行 ellipsis、选择器仅存在于 adapter |
+| soundEnabled 与 panelSkin | `PASS` | 用户触发时音效 exactly once、失败静默、reduced motion 不静音；皮肤 DOM/CSS 与 storage roundtrip |
+| production audit alias/Image 加固 | `PASS` | 独立字面量 sink/alias/beacon 用例与普通 alias 反误报用例均通过 |
+| README | `PASS` | 已同步 5 风格、3 比例、7 个 storage 字段、音效与皮肤行为 |
 
 ## Gate C — Five-state Visual QA（fixture）
 
