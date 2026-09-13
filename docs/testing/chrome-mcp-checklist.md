@@ -6,7 +6,7 @@
 
 | 范围 | 状态 | 具名来源/限制 |
 | --- | --- | --- |
-| 历史真实主流程 | `PASS`（仅继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`：入口、顶层评论、默认已展示回复、连续动画、滚动目标更新、生成和本地保存 |
+| 历史真实主流程 | `PASS`（仅继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`：入口可见/可用、顶层评论、默认已展示回复可识别/可选择、连续动画、滚动目标更新、生成和本地保存；不含唯一性或回复卡片内容边界 |
 | 历史真实 editing Panel | `PASS`（仅继承） | `.superpowers/status/manual-acceptance_执行命令说明_20260912.md`：单一 editing 截图，固定操作区和底部装饰 |
 | 本轮五态视觉 | `PASS`（fixture） | `.superpowers/visual-qa/round-mvp-rc-20260913_105656_186-bc892c77b93e4ba48bb61c9322c291fd/`；不能证明真实 B站 |
 | 本轮真实 Chrome MCP | `NOT RUN` | 当前工具集无 callable Chrome MCP |
@@ -25,9 +25,11 @@
 
 | 检查项 | 当前状态 | 所需真实页面证据 |
 | --- | --- | --- |
-| 页面刷新后右下角入口唯一可见 | `PASS`（仅继承） | 新会话 snapshot 或脱敏截图 |
+| 页面刷新后右下角“开启评论选择”入口可见且可用 | `PASS`（仅继承） | 历史具名证据；新会话 snapshot 或脱敏截图 |
+| 页面刷新后右下角入口唯一 | `NOT RUN` | 历史具名证据未单独覆盖唯一性；需要新会话 snapshot |
 | 顶层评论 hover、选择并打开 editing | `PASS`（仅继承） | 新会话操作记录 |
-| 默认展示回复独立选择，卡片只含其作者/正文/时间 | `PASS`（仅继承） | 新会话脱敏证据 |
+| 默认展示回复可独立识别和选择 | `PASS`（仅继承） | 历史具名证据；新会话操作记录 |
+| 默认展示回复的卡片只含其自身作者、正文和时间 | `NOT RUN`（真实站点） | fixture 自动化 `PASS`：`tests/e2e/selection-flow.spec.ts` 的真实结构回复断言；需要新会话脱敏证据 |
 | 相邻移动与滚动后的高亮连续 | `PASS`（仅继承） | 新会话操作记录 |
 | editing 状态固定操作区、底部装饰、无裁切/遮挡 | `PASS`（仅继承） | 新会话脱敏截图 |
 | generating 状态：插画、制作中、取消制作，无编辑/保存 | `NOT RUN` | 状态截图与操作记录 |

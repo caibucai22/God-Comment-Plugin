@@ -4,7 +4,7 @@
 
 ## 结论
 
-**CONDITIONAL PASS**。Gate A、B、C 均通过，未发现开放 P0/P1；Gate D 只继承了具名的历史真实 B站主流程与 editing 截图证据。本轮没有可调用 Chrome MCP，未执行新的真实页面会话，五状态逐态、9:16/16:9、确认前下载、125% 缩放、关闭恢复和隐私等真实站点项目仍为 `NOT RUN`。依据 [RC Spec](../superpowers/specs/2026-09-12-mvp-release-candidate-closure-design.md) 的判定规则，结论不得高于 `CONDITIONAL PASS`。
+**CONDITIONAL PASS**。Gate A、B、C 均通过，未发现开放 P0/P1；Gate D 只继承了具名的历史真实 B站主流程与 editing 截图证据。本轮没有可调用 Chrome MCP，未执行新的真实页面会话；入口唯一性、回复卡片内容边界、五状态逐态、正文修改/恢复原文、样式/更多摘要一致、9:16/16:9、确认前下载、125% 缩放、关闭恢复和隐私等真实站点项目仍为 `NOT RUN`。依据 [RC Spec](../superpowers/specs/2026-09-12-mvp-release-candidate-closure-design.md) 的判定规则，结论不得高于 `CONDITIONAL PASS`。
 
 ## 环境与可追溯性
 
@@ -61,9 +61,15 @@ Gate B 覆盖的 fixture 行为包括五态几何与语义、3:4/9:16/16:9 PNG I
 
 | 真实项目 | 状态 | 具名来源 / 边界 |
 | --- | --- | --- |
-| 入口、顶层评论、默认已展示回复、动画连续、滚动目标更新、生成与本地保存 | `PASS`（继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`；本轮未复测 |
+| 入口可见且可用 | `PASS`（继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`；本轮未复测 |
+| 入口唯一性 | `NOT RUN` | 历史具名证据未单独覆盖；无当前 Chrome MCP 会话 |
+| 顶层评论、默认已展示回复可识别/可选择 | `PASS`（继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`；本轮未复测 |
+| 默认已展示回复的卡片只含该回复自身作者、正文和时间 | `NOT RUN`（真实站点） | fixture 自动化 `PASS`：`tests/e2e/selection-flow.spec.ts` 的真实结构回复断言；无当前真实 B站证据 |
+| 动画连续、滚动目标更新、生成与本地保存 | `PASS`（继承） | `docs/status/2026-08-15-mvp-acceptance-handoff.md`；本轮未复测 |
 | editing Panel、固定操作区、共享草地、场景比例、无底部遮挡 | `PASS`（继承） | `.superpowers/status/manual-acceptance_执行命令说明_20260912.md`；仅 editing 截图 |
 | generating、failed、generated、saved 的真实逐态 | `NOT RUN` | 无当前 Chrome MCP 会话 |
+| 评论正文修改并恢复原文（Spec 第 8 节第 5 项） | `NOT RUN` | 无当前 Chrome MCP 会话 |
+| 样式摘要和更多选项摘要与实际选择一致（Spec 第 8 节第 6 项） | `NOT RUN` | 无当前 Chrome MCP 会话 |
 | 真实 9:16 与 16:9 下载及精确尺寸 | `NOT RUN` | 无当前 Chrome MCP 会话 |
 | generated 前不下载、确认后一次下载 | `NOT RUN` | 无当前 Chrome MCP 会话 |
 | 五种退出、Panel 关闭后页面交互恢复 | `NOT RUN` | 无当前 Chrome MCP 会话 |
