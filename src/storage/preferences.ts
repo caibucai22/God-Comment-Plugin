@@ -25,7 +25,7 @@ function isCardStyle(value: unknown): value is CardStyle {
 }
 
 function isCardRatio(value: unknown): value is CardRatio {
-  return value === "3:4" || value === "16:9";
+  return value === "3:4" || value === "9:16" || value === "16:9";
 }
 
 function isPanelSkin(value: unknown): value is PanelSkin {

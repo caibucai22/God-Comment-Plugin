@@ -28,12 +28,16 @@ describe("preferences", () => {
     }));
   });
 
-  it("migrates the retired vertical 9:16 ratio to 3:4", async () => {
+  it("preserves the approved 9:16 ratio through save and subsequent load", async () => {
+    let stored: Record<string, unknown> = {};
+    const set = vi.fn(async (values: Record<string, unknown>) => { stored = values; });
     (globalThis as { chrome?: unknown }).chrome = {
-      storage: { sync: { get: async () => ({ ratio: "9:16" }) } },
+      storage: { sync: { get: async () => stored, set } },
     };
 
-    await expect(loadPreferences()).resolves.toEqual(expect.objectContaining({ ratio: "3:4" }));
+    await expect(savePreferences({ ratio: "9:16" })).resolves.toEqual(expect.objectContaining({ ratio: "9:16" }));
+    await expect(loadPreferences()).resolves.toEqual(expect.objectContaining({ ratio: "9:16" }));
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ ratio: "9:16" }));
   });
   it("returns the exact defaults when Chrome storage is unavailable", async () => {
     await expect(loadPreferences()).resolves.toEqual(defaults);
