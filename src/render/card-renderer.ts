@@ -199,8 +199,10 @@ function drawPlatform(
   videoTitle?: string,
 ): void {
   withSavedContext(ctx, () => {
-    const markWidth = 68;
-    const markHeight = 46;
+    const markHeight = geometry.width >= 1_900 ? 38 : geometry.width <= 1_080 ? 30 : 34;
+    const intrinsicWidth = mark ? Math.max(1, mark.naturalWidth || mark.width) : 96;
+    const intrinsicHeight = mark ? Math.max(1, mark.naturalHeight || mark.height) : 64;
+    const markWidth = Math.min(150, markHeight * intrinsicWidth / intrinsicHeight);
     const markY = geometry.platformTop + (geometry.platformHeight - markHeight) / 2;
     if (mark) {
       ctx.drawImage(mark, geometry.contentX, markY, markWidth, markHeight);
@@ -456,10 +458,12 @@ function drawGameDecoration(
   }
 }
 
-function estimateCoverRatio(content: string): number {
+function estimateCoverRatio(content: string, width: number, height: number): number {
   const estimatedLines = Math.max(1, Math.ceil(Array.from(content.trim()).length / 24));
   const progress = Math.min(1, Math.max(0, (estimatedLines - 1) / 14));
-  return 0.26 - progress * 0.08;
+  if (width > height) return 0.64 - progress * 0.22;
+  if (height / width > 1.5) return 0.24 - progress * 0.06;
+  return 0.28 - progress * 0.06;
 }
 
 function createGeometry(
@@ -469,15 +473,16 @@ function createGeometry(
   hasCover: boolean,
   includeAttributes: boolean,
 ): CardGeometry {
-  const margin = width === 1200 ? 80 : 72;
+  const horizontal = width > height;
+  const margin = horizontal ? 54 : width === 1200 ? 80 : 72;
   const contentX = margin;
   const contentWidth = width - margin * 2;
   const platformTop = margin;
-  const platformHeight = 84;
+  const platformHeight = horizontal ? 60 : 84;
   const platformBottom = platformTop + platformHeight;
-  const coverTop = platformBottom + 28;
-  const coverHeight = hasCover ? height * estimateCoverRatio(source.content) : 0;
-  const bodyTop = hasCover ? coverTop + coverHeight + 36 : platformBottom + 36;
+  const coverTop = platformBottom + (horizontal ? 14 : 28);
+  const coverHeight = hasCover ? height * estimateCoverRatio(source.content, width, height) : 0;
+  const bodyTop = hasCover ? coverTop + coverHeight + (horizontal ? 22 : 36) : platformBottom + 36;
   const attributeTop = includeAttributes ? height - margin - 138 : height - margin;
   const attributeBaseline = attributeTop + 68;
   const metadataBottom = includeAttributes ? attributeTop - 38 : height - margin;

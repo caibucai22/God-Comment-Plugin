@@ -1,10 +1,13 @@
-<!-- Original local platform mark drawn for this extension; no remote Bilibili asset is embedded. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="0 0 96 64" role="img" aria-labelledby="title desc">
-  <title id="title">哔哩哔哩平台标记</title>
-  <desc id="desc">带天线和微笑的简化电视轮廓</desc>
-  <g fill="none" stroke="#00aeec" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="m33 13-9-8m39 8 9-8"/>
-    <rect x="8" y="14" width="80" height="44" rx="11"/>
-    <path d="M29 34v6m38-6v6M38 46c6 5 14 5 20 0"/>
+<!-- Local path-based platform wordmark; no remote asset or font dependency. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="80" viewBox="0 0 300 80" role="img" aria-labelledby="title desc">
+  <title id="title">bilibili</title>
+  <desc id="desc">粉色 bilibili 文字标识</desc>
+  <g fill="none" stroke="#fb7299" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 8v58h22c15 0 23-10 23-25S51 18 37 18H14"/>
+    <path d="M75 29v37M75 12h.1"/>
+    <path d="M94 8v58h22c15 0 23-10 23-25s-8-23-22-23H94"/>
+    <path d="M155 29v37M155 12h.1"/>
+    <path d="M174 8v58h22c15 0 23-10 23-25s-8-23-22-23h-23"/>
+    <path d="M235 29v37M235 12h.1M258 8v58M282 29v37M282 12h.1"/>
   </g>
 </svg>

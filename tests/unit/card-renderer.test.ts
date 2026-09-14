@@ -331,26 +331,35 @@ describe("renderCard", () => {
     assertCallsStayInsideCanvas(canvas);
   });
 
-  it("maps cover height monotonically from 26% toward 18%, clamps it, and crop-fills", async () => {
-    const short = await render({ source: { content: "短评" } });
-    const medium = await render({ source: { content: "中等长度评论".repeat(28) } });
-    const long = await render({ source: { content: "很长的评论".repeat(240) } });
-    const shortArgs = coverCall(short.canvas.context).args;
-    const mediumArgs = coverCall(medium.canvas.context).args;
-    const longArgs = coverCall(long.canvas.context).args;
-    const shortHeight = shortArgs[8] as number;
-    const mediumHeight = mediumArgs[8] as number;
-    const longHeight = longArgs[8] as number;
+  it.each([
+    { ratio: "3:4" as const, minimum: 0.22, maximum: 0.28 },
+    { ratio: "9:16" as const, minimum: 0.18, maximum: 0.24 },
+  ])("keeps $ratio covers inside its portrait media band", async ({ ratio, minimum, maximum }) => {
+    for (const content of ["短评", "中等长度评论".repeat(28), "很长的评论".repeat(240)]) {
+      const rendered = await render({ source: { content }, options: { ratio } });
+      const args = coverCall(rendered.canvas.context).args;
+      const coverRatio = (args[8] as number) / rendered.canvas.height;
 
-    expect(shortHeight).toBe(short.canvas.height * 0.26);
-    expect(mediumHeight).toBeLessThan(shortHeight);
-    expect(mediumHeight).toBeGreaterThan(longHeight);
-    expect(longHeight).toBe(long.canvas.height * 0.18);
-    expect(shortArgs).toHaveLength(9);
-    expect(shortArgs[7]).toBe(short.canvas.width - 160);
-    expect(short.result.coverFallbackUsed).toBe(false);
-    expect(medium.result.coverFallbackUsed).toBe(false);
-    expect(long.result.coverFallbackUsed).toBe(false);
+      expect(coverRatio).toBeGreaterThanOrEqual(minimum);
+      expect(coverRatio).toBeLessThanOrEqual(maximum);
+      expect(args).toHaveLength(9);
+      expect(rendered.result.coverFallbackUsed).toBe(false);
+    }
+  });
+
+  it("prioritizes the 16:9 cover from 70% toward a 42% long-comment floor", async () => {
+    const short = await render({ source: { content: "短评" }, options: { ratio: "16:9" } });
+    const medium = await render({ source: { content: "中等长度评论".repeat(28) }, options: { ratio: "16:9" } });
+    const long = await render({ source: { content: "很长的评论".repeat(240) }, options: { ratio: "16:9" } });
+    const heights = [short, medium, long].map(
+      (rendered) => (coverCall(rendered.canvas.context).args[8] as number) / rendered.canvas.height,
+    );
+
+    expect(heights[0]).toBeGreaterThanOrEqual(0.62);
+    expect(heights[0]).toBeLessThanOrEqual(0.7);
+    expect(heights[1]).toBeLessThan(heights[0]);
+    expect(heights[1]).toBeGreaterThan(heights[2]);
+    expect(heights[2]).toBeCloseTo(0.42, 8);
   });
 
   it("does not request a cover when disabled and expands the body into the media space", async () => {
@@ -547,6 +556,22 @@ describe("renderCard", () => {
     expect(canvas.context.calls.some(
       (call) => call.name === "drawImage" && (call.args[0] as FakeImage).tag === loadedUrls[0],
     )).toBe(true);
+  });
+
+  it("preserves the wide wordmark aspect ratio at a clear platform-row size", async () => {
+    const { canvas } = await render(
+      { options: { includeCover: false } },
+      async () => fakeImage("local-wordmark", 300, 80),
+    );
+    const mark = canvas.context.calls.find(
+      (call) => call.name === "drawImage" && !(call.args[0] as FakeImage).tag?.includes("cover.jpg"),
+    );
+
+    expect(mark).toBeDefined();
+    const [, , , width, height] = mark!.args as [FakeImage, number, number, number, number];
+    expect(width / height).toBeCloseTo(300 / 80, 5);
+    expect(height).toBeGreaterThanOrEqual(30);
+    expect(height).toBeLessThanOrEqual(38);
   });
 
   it("draws one ellipsized video title beside the local Bilibili mark without colliding with the style mark", async () => {
