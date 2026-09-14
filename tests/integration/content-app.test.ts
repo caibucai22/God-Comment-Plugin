@@ -664,7 +664,7 @@ describe("content application composition", () => {
       soundEnabled: true,
       panelSkin: "classic-dark",
     };
-    expect(playGenerationSound).toHaveBeenCalledOnce();
+    expect(playGenerationSound.mock.calls.map(([cue]) => cue)).toEqual(["start", "success"]);
     expect(savePreferences).toHaveBeenCalledWith(exactPreferences);
     expect(renderCard).toHaveBeenCalledWith(expect.objectContaining({ options: exactPreferences }));
   });
@@ -683,7 +683,8 @@ describe("content application composition", () => {
       });
       await settle();
 
-      expect(playGenerationSound).toHaveBeenCalledOnce();
+      expect(playGenerationSound).toHaveBeenCalledWith("start");
+      expect(playGenerationSound).toHaveBeenCalledWith("success");
       expect(renderCard).toHaveBeenCalledOnce();
       expect(harness.overlay.statuses.at(-1)).toEqual({ kind: "success", message: "卡片已保存" });
     }

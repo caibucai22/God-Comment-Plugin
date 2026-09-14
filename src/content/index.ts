@@ -1,5 +1,6 @@
 import { generateAttributes as defaultGenerateAttributes } from "../attributes/generator";
 import { playGenerationSound as defaultPlayGenerationSound } from "../audio/generation-sound";
+import type { GenerationSoundCue } from "../audio/generation-sound";
 import type {
   CardRatio,
   CardAttributes,
@@ -73,7 +74,7 @@ export interface ContentAppDependencies {
   readonly exportPng: (canvas: HTMLCanvasElement, filename: string) => Promise<void>;
   readonly createPngArtifact?: (canvas: HTMLCanvasElement) => Promise<PngArtifact>;
   readonly downloadPngArtifact?: (artifact: PngArtifact, filename: string) => Promise<void>;
-  readonly playGenerationSound?: () => void | Promise<void>;
+  readonly playGenerationSound?: (cue: GenerationSoundCue) => void | Promise<void>;
   readonly createFilename: () => string;
 }
 
@@ -187,13 +188,15 @@ export async function createContentApp(
         return;
       }
 
-      if (options.soundEnabled && dependencies.playGenerationSound) {
+      const playCue = (cue: GenerationSoundCue): void => {
+        if (!options.soundEnabled || !dependencies.playGenerationSound) return;
         try {
-          void Promise.resolve(dependencies.playGenerationSound()).catch(() => undefined);
+          void Promise.resolve(dependencies.playGenerationSound(cue)).catch(() => undefined);
         } catch {
           // Optional audio feedback must not affect generation.
         }
-      }
+      };
+      playCue("start");
 
       const exactPreferences: CardPreferences = {
         style: options.style,
@@ -215,6 +218,7 @@ export async function createContentApp(
         if (destroyed || operationVersion !== generationVersion) return;
       } catch {
         if (!destroyed && operationVersion === generationVersion) {
+          playCue("failure");
           if (overlay.showFailed) overlay.showFailed("卡片生成失败，请重新选择或重试");
           else overlay.showStatus("error", "卡片生成失败，请重新选择或重试");
           ensureSelectionActive();
@@ -231,6 +235,7 @@ export async function createContentApp(
           artifact = await dependencies.createPngArtifact(rendered.canvas);
         } catch {
           if (destroyed || operationVersion !== generationVersion) return;
+          playCue("failure");
           pendingRendered = null;
           pendingFilename = null;
           if (overlay.showFailed) overlay.showFailed("卡片生成失败，请返回修改或重试");
@@ -252,6 +257,7 @@ export async function createContentApp(
         );
       }
       else await handleConfirmSave(true);
+      playCue("success");
     } finally {
       if (operationVersion === generationVersion) {
         generating = false;
