@@ -86,7 +86,20 @@
 - `prefers-reduced-motion` 不隐式静音，音效仅由用户开关决定；
 - 每次播放后释放 oscillator/gain/context，不保留后台计时器或常驻音频资源。
 
-## 6. GitHub CI
+## 6. 像素电视悬浮入口
+
+现有文字胶囊入口替换为与 Panel 同一视觉体系的像素电视玩偶入口。优先复用项目内 `mascot-master.png`，通过 HTML/CSS 组合迷你卡片，不生成风格不一致的替代素材。
+
+- 玩偶待机时仅有轻微呼吸/眨眼，并周期性从侧面弹出迷你评论卡片后收回；
+- `prefers-reduced-motion: reduce` 下停止所有循环动画，但入口保持清晰、可点击、可拖动；
+- Pointer Events 同时支持鼠标和触控笔；达到 6px 位移阈值后判定为拖动，释放时不得误触发选择模式；
+- 拖动释放后吸附最近的左侧或右侧安全边缘；
+- 保存 `side: "left" | "right"` 与归一化纵向位置 `yRatio: number`，刷新后恢复；窗口缩放时重新夹在可视区内；
+- 位置使用 `chrome.storage.local` 下独立的 `floatingEntryPlacement` 字段，不混入卡片生成偏好，也不写入 B站页面的 localStorage；
+- 缺失、损坏或越界的持久化值回退到右下角默认位置；
+- 进入选择模式、打开 Panel 和状态提示时，入口与其他浮层不得互相遮挡。
+
+## 7. GitHub CI
 
 新增 `.github/workflows/ci.yml`：
 
@@ -102,7 +115,7 @@
 
 本地 `scripts/run-release-gates.ps1` 继续保留，仍是 Windows 人工发布前入口；CI 与本地门禁应调用同一底层 npm 命令，避免验证内容漂移。
 
-## 7. 标签发布
+## 8. 标签发布
 
 新增 `.github/workflows/release.yml`：
 
@@ -118,7 +131,7 @@
 
 本轮不配置 Chrome Web Store 自动提交。
 
-## 8. 数据流与兼容性
+## 9. 数据流与兼容性
 
 评论源数据、用户偏好和 Panel draft 接口保持向后兼容。主要变化路径：
 
@@ -133,6 +146,11 @@ CardRenderInput
   → render/export preview
   → success cue 或 failure cue
 
+pointer down/move/up
+  → click 或 drag 判定
+  → 最近边缘吸附
+  → chrome.storage.local 持久化 placement
+
 PR/master
   → GitHub CI
 
@@ -143,11 +161,11 @@ v* tag
   → GitHub Release
 ```
 
-## 9. 测试与验收
+## 10. 测试与验收
 
 采用 TDD，先增加会失败的测试，再实施最小代码变更。
 
-### 9.1 渲染
+### 10.1 渲染
 
 - bilibili SVG 本地、非空、透明背景、绘制保持宽高比；
 - 三种卡片比例中的标识和标题不重叠；
@@ -157,14 +175,14 @@ v* tag
 - 关闭/缺失/失败封面回退正常；
 - PNG IHDR 分别为 1200×1600、1080×1920、1920×1080。
 
-### 9.2 音效
+### 10.2 音效
 
 - start/success/failure cue 的 oscillator、gain、调度及资源释放；
 - 开关关闭零 AudioContext；
 - 成功、失败、重试和忙碌去重；
 - WebAudio 缺失、构造失败、播放失败不影响主流程。
 
-### 9.3 CI/CD
+### 10.3 CI/CD
 
 - workflow YAML 可解析；
 - CI 触发条件、Node 22、权限、concurrency 和步骤完整；
@@ -173,14 +191,24 @@ v* tag
 - SHA-256 可复算一致；
 - 本地完整 protected release gate 继续通过。
 
-### 9.4 人工检查
+### 10.4 悬浮入口
+
+- 默认右下角、单一入口和像素素材可见；
+- 小于 6px 的移动仍按点击处理，达到阈值后只拖动不点击；
+- 左右吸附、纵向 clamp、窗口 resize 和刷新恢复；
+- storage 缺失/非法值回退；
+- reduced-motion 下无循环动画；
+- 选择提示、Panel 和状态提示不被入口遮挡。
+
+### 10.5 人工检查
 
 - 在真实 B站分别导出带封面的 3:4、9:16、16:9；重点观察横版短评的大封面与长评的正文安全区；
 - 检查 bilibili 标识清晰、比例正确，与标题不重叠；
 - 开关音效，确认开始与完成反馈明显、关闭后完全静音；
 - 从 GitHub Actions artifact 解压并加载扩展，完成入口→选择→生成→确认保存冒烟测试。
+- 在左右两侧拖动入口并刷新，确认吸附位置恢复；确认拖动不会误触发选择模式。
 
-## 10. 实施边界与交付物
+## 11. 实施边界与交付物
 
 预计修改：
 
@@ -188,6 +216,9 @@ v* tag
 - `src/render/card-renderer.ts`
 - `src/audio/generation-sound.ts`
 - `src/content/index.ts`
+- `src/ui/overlay-root.ts`
+- `src/ui/overlay.css`
+- `src/storage/floating-entry-placement.ts`
 - 对应 unit/integration/E2E tests
 - `package.json`
 - `.github/workflows/ci.yml`
