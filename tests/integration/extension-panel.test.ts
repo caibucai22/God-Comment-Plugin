@@ -55,6 +55,8 @@ describe("ExtensionPanel shared shell", () => {
     expect(panel.querySelectorAll(".ccg-bottom-decoration")).toHaveLength(1);
     expect(panel.textContent).not.toContain("BETA");
     expect(panel.querySelector("[data-five-column-layout]")).toBeNull();
+    expect(panel.getAttribute("aria-label")).toBe("有神评");
+    expect(panel.querySelector(".ccg-panel-title")?.textContent).toBe("有神评");
   });
 
   it.each(states)("renders real pixel assets without missing placeholders for %s", (state) => {

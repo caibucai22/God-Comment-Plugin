@@ -25,7 +25,7 @@ export function createConfirmCard(
   card.className = "ccg-confirm";
   card.setAttribute("aria-label", "生成评论卡片");
   card.innerHTML = `
-    <div class="ccg-confirm__heading"><span>流光卡片核</span><strong>生成前确认</strong></div>
+    <div class="ccg-confirm__heading"><span>有神评</span><strong>生成前确认</strong></div>
     <blockquote class="ccg-comment-preview"></blockquote>
     <div class="ccg-control-group" role="group" aria-label="卡片风格">
       <span>风格</span>

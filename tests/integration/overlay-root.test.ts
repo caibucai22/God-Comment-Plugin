@@ -80,6 +80,7 @@ describe("OverlayRoot", () => {
     expect(document.querySelectorAll("[data-ccg-overlay-root]")).toHaveLength(1);
     expect(document.head.querySelector("style[data-ccg-overlay]")).toBeNull();
     expect(overlay.shadowRoot?.querySelector(".ccg-entry")).not.toBeNull();
+    expect(overlay.shadowRoot?.querySelector(".ccg-entry")?.textContent).toContain("有神评");
   });
 
   it("emits selection commands from the entry and active prompt", () => {

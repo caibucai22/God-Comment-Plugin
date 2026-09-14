@@ -21,10 +21,14 @@
 
 ---
 
-### Task 1: Bilibili wordmark and ratio-aware cover geometry
+### Task 1: 有神评 branding and ratio-aware cover geometry
 
 **Files:**
-- Modify: `src/assets/bilibili-mark.svg`
+- Modify: `manifest.config.ts`
+- Modify: `src/ui/extension-panel.ts`
+- Modify: `src/ui/overlay-root.ts`
+- Modify: `src/ui/confirm-card.ts`
+- Modify: `src/export/export-service.ts`
 - Modify: `src/render/card-renderer.ts`
 - Modify: `tests/unit/card-renderer.test.ts`
 - Modify: `tests/e2e/selection-flow.spec.ts`
@@ -33,10 +37,10 @@
 - Consumes: `RenderCardInput`, `CardRatio`, `layoutText`, `CARD_DIMENSIONS`.
 - Produces: one internal cover-geometry calculation; `renderCard(input): Promise<RenderCardResult>` remains compatible.
 
-- [ ] Add failing tests that record Canvas destinations and assert intrinsic wordmark aspect ratio, title non-overlap, 3:4 cover at 22–28%, 9:16 at 18–24%, and short/medium/long 16:9 covers monotonically decreasing inside 42–70%.
+- [ ] Add failing tests that record Canvas destinations and assert the “有神评” brand contract, title non-overlap, full-source contain drawing, 3:4 cover at 22–28%, 9:16 at 18–24%, and short/medium/long 16:9 covers monotonically decreasing inside 42–70%.
 - [ ] Run `npx vitest run tests/unit/card-renderer.test.ts`; retain the expected RED showing old 16:9 cover sizing or mark geometry failure.
-- [ ] Replace the SVG with a transparent path-based pink wordmark; preserve aspect ratio and use ratio-specific safe dimensions.
-- [ ] Centralize cover height selection from ratio, body/meta budget and measured text; preserve centered `cover` cropping, finite geometry, and existing load-failure fallback.
+- [ ] Replace third-party platform branding with deterministic Canvas text for “有神评” and “有神评，让更多人看见”; keep bilibili as plain source attribution only.
+- [ ] Centralize cover height selection from ratio, body/meta budget and measured text; use centered `contain` geometry with the full source rectangle, finite values, and the existing load-failure fallback.
 - [ ] Extend Playwright’s horizontal test to verify 1920×1080 output and a 62–70% media region for a short comment.
 - [ ] Run the focused Vitest and `npx playwright test tests/e2e/selection-flow.spec.ts --grep "horizontal|ratio"`.
 - [ ] Commit only this task as `feat: prioritize card branding and video covers`.

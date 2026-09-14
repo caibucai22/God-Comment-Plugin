@@ -430,7 +430,7 @@ export function createExtensionPanel(
   panel.classList.toggle("ccg-extension-panel--classic-dark", panelSkin === "classic-dark");
   panel.dataset.panelState = model.state;
   panel.dataset.panelSkin = panelSkin;
-  panel.setAttribute("aria-label", "流光卡片核");
+  panel.setAttribute("aria-label", "有神评");
 
   const header = document.createElement("header");
   header.className = "ccg-panel-header";
@@ -440,7 +440,8 @@ export function createExtensionPanel(
   logo.alt = "";
   logo.dataset.pixelAsset = "panel-logo";
   const title = document.createElement("strong");
-  title.textContent = "流光卡片核";
+  title.className = "ccg-panel-title";
+  title.textContent = "有神评";
   const close = document.createElement("button");
   close.type = "button";
   close.className = "ccg-panel-close";

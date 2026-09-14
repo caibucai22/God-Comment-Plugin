@@ -362,6 +362,38 @@ describe("renderCard", () => {
     expect(heights[2]).toBeCloseTo(0.42, 8);
   });
 
+  it("fits the complete 16:9 cover inside its media region without source cropping", async () => {
+    const { canvas } = await render(
+      { source: { content: "短评" }, options: { ratio: "16:9" } },
+      async (url) => url.includes("cover.jpg")
+        ? fakeImage(url, 1600, 900)
+        : fakeImage(url),
+    );
+    const cover = coverCall(canvas.context);
+
+    expect(cover.args).toHaveLength(9);
+    const [
+      , sourceX, sourceY, sourceWidth, sourceHeight,
+      destinationX, destinationY, destinationWidth, destinationHeight,
+    ] = cover.args as [
+      FakeImage,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+    expect([sourceX, sourceY, sourceWidth, sourceHeight]).toEqual([0, 0, 1600, 900]);
+    expect(destinationWidth / destinationHeight).toBeCloseTo(16 / 9, 5);
+    expect(destinationX).toBeGreaterThanOrEqual(54);
+    expect(destinationY).toBeGreaterThanOrEqual(128);
+    expect(destinationX + destinationWidth).toBeLessThanOrEqual(1920 - 54);
+    expect(destinationY + destinationHeight).toBeLessThanOrEqual(128 + 1080 * 0.7);
+  });
+
   it("does not request a cover when disabled and expands the body into the media space", async () => {
     const withCover = await render();
     const withoutCover = await render({ options: { includeCover: false } });
@@ -375,7 +407,7 @@ describe("renderCard", () => {
     expect(withoutCoverY).toBeLessThan(withCoverY);
     expect(withoutCover.result.coverFallbackUsed).toBe(false);
     expect(missingUrl.result.coverFallbackUsed).toBe(false);
-    expect(missingUrl.loadedUrls).toHaveLength(1);
+    expect(missingUrl.loadedUrls).toHaveLength(0);
     expect(bodyCalls(missingUrl.canvas.context, tokens.bodyText)[0].args[2]).toBe(withoutCoverY);
   });
 
@@ -547,34 +579,17 @@ describe("renderCard", () => {
     expect(extraParticle(enabled.canvas.context).length).toBeGreaterThan(0);
   });
 
-  it("uses the packaged Bilibili mark and never requests a remote logo", async () => {
+  it("draws the 有神评 wordmark, tagline, and a plain Bilibili source label without loading a logo", async () => {
     const { loadedUrls, canvas } = await render({ options: { includeCover: false } });
 
-    expect(loadedUrls).toHaveLength(1);
-    expect(loadedUrls[0]).not.toMatch(/^https?:/u);
-    expect(loadedUrls[0]).toMatch(/^(?:data:image\/svg\+xml|file:|chrome-extension:)/u);
-    expect(canvas.context.calls.some(
-      (call) => call.name === "drawImage" && (call.args[0] as FakeImage).tag === loadedUrls[0],
-    )).toBe(true);
+    expect(loadedUrls).toHaveLength(0);
+    expect(textCalls(canvas.context, "有神评")).toHaveLength(1);
+    expect(textCalls(canvas.context, "有神评，让更多人看见")).toHaveLength(1);
+    expect(textCalls(canvas.context, "内容来自 bilibili")).toHaveLength(1);
+    expect(callsNamed(canvas.context, "drawImage")).toHaveLength(0);
   });
 
-  it("preserves the wide wordmark aspect ratio at a clear platform-row size", async () => {
-    const { canvas } = await render(
-      { options: { includeCover: false } },
-      async () => fakeImage("local-wordmark", 300, 80),
-    );
-    const mark = canvas.context.calls.find(
-      (call) => call.name === "drawImage" && !(call.args[0] as FakeImage).tag?.includes("cover.jpg"),
-    );
-
-    expect(mark).toBeDefined();
-    const [, , , width, height] = mark!.args as [FakeImage, number, number, number, number];
-    expect(width / height).toBeCloseTo(300 / 80, 5);
-    expect(height).toBeGreaterThanOrEqual(30);
-    expect(height).toBeLessThanOrEqual(38);
-  });
-
-  it("draws one ellipsized video title beside the local Bilibili mark without colliding with the style mark", async () => {
+  it("draws one ellipsized video title beside the 有神评 wordmark without colliding with the style mark", async () => {
     const videoTitle = "超长视频标题：需要在卡片平台行内稳定显示并在超出宽度时截断。".repeat(8);
     const { canvas } = await render({
       source: { videoTitle },
@@ -592,16 +607,14 @@ describe("renderCard", () => {
     expect(textBounds(title!).right).toBeLessThan(textBounds(styleMark).left);
   });
 
-  it("keeps the local Bilibili mark without drawing substitute platform text when the video title is missing", async () => {
-    const { canvas, loadedUrls } = await render({
+  it("keeps the 有神评 brand when the video title is missing", async () => {
+    const { canvas } = await render({
       source: { videoTitle: undefined },
       options: { includeCover: false },
     });
 
-    expect(textCalls(canvas.context, "哔哩哔哩 · 评论")).toHaveLength(0);
-    expect(canvas.context.calls.some(
-      (call) => call.name === "drawImage" && (call.args[0] as FakeImage).tag === loadedUrls[0],
-    )).toBe(true);
+    expect(textCalls(canvas.context, "有神评")).toHaveLength(1);
+    expect(textCalls(canvas.context, "有神评，让更多人看见")).toHaveLength(1);
   });
 });
 

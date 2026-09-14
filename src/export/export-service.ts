@@ -232,7 +232,7 @@ export function createPngFilename(clock: () => Date = () => new Date()): string 
   const year = String(now.getFullYear()).padStart(4, "0");
   const date = `${year}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
   const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `神评卡片-bilibili-${date}-${time}.png`;
+  return `有神评-${date}-${time}.png`;
 }
 
 export async function exportPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {

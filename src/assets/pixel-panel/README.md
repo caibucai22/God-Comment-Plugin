@@ -1,6 +1,6 @@
 # Pixel Panel Assets
 
-本目录存放「流光卡片核」像素风制作面板的生成素材。本批素材以参考图
+本目录存放「有神评」像素风制作面板的生成素材。本批素材以参考图
 `C:\Users\001\Pictures\caima\comment-card\像素风.png` 为视觉基准，使用内置 GPT Image
 生成，并通过绿色色键转为透明 PNG。
 

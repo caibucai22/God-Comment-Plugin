@@ -2,7 +2,7 @@ import type { ManifestV3Export } from "@crxjs/vite-plugin";
 
 const manifest = {
   manifest_version: 3,
-  name: "神评卡片",
+  name: "有神评",
   version: "0.1.0",
   permissions: ["storage", "downloads"],
   content_scripts: [

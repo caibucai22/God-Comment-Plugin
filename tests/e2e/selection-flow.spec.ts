@@ -97,7 +97,7 @@ test("exports every release ratio only after confirmation with exact PNG IHDR di
 
   for (const [index, entry] of releaseExportMatrix.entries()) {
     await page.getByTestId("comment-item").first().click();
-    const panel = page.getByRole("region", { name: "流光卡片核" });
+    const panel = page.getByRole("region", { name: "有神评" });
     await panel.getByRole("button", { name: "样式设置" }).click();
     await panel.getByLabel(entry.label).check();
     await panel.getByRole("button", { name: "制作卡片" }).click();
@@ -134,7 +134,7 @@ test("recovers from a deterministic generation failure through retry and return 
   await page.goto(url);
   await enterSelection(page);
   await page.getByTestId("comment-item").first().click();
-  const panel = page.getByRole("region", { name: "流光卡片核" });
+  const panel = page.getByRole("region", { name: "有神评" });
   await panel.getByRole("button", { name: "样式设置" }).click();
   await panel.locator('input[name="ccg-ratio"][value="3:4"]').evaluate((input) => {
     (input as HTMLInputElement).value = "unsupported-release-ratio";
@@ -174,7 +174,7 @@ test("deduplicates repeated save confirmation while the first save is busy", asy
   await page.goto(url);
   await enterSelection(page);
   await page.getByTestId("comment-item").first().click();
-  const panel = page.getByRole("region", { name: "流光卡片核" });
+  const panel = page.getByRole("region", { name: "有神评" });
   await panel.getByRole("button", { name: "制作卡片" }).click();
   await expect(panel).toHaveAttribute("data-panel-state", "generated", { timeout: 20_000 });
 
@@ -209,7 +209,7 @@ test("loads the unpacked extension and downloads a non-empty PNG through the ful
   );
   await comment.click();
 
-  const confirm = page.getByRole("region", { name: "流光卡片核" });
+  const confirm = page.getByRole("region", { name: "有神评" });
   await expect(confirm).toBeVisible();
   await expect(confirm.getByRole("textbox", { name: "评论文字" })).toHaveValue(
     "历史不是过去的回声，而是今天仍在发生的选择。",
@@ -242,7 +242,7 @@ test("renders and saves the horizontal 16:9 card through the production panel", 
   await page.goto(url);
   await enterSelection(page);
   await page.getByTestId("comment-item").first().click();
-  const panel = page.getByRole("region", { name: "流光卡片核" });
+  const panel = page.getByRole("region", { name: "有神评" });
   await panel.getByRole("button", { name: "样式设置" }).click();
   await panel.getByLabel("16:9 横版").check();
 
@@ -311,7 +311,7 @@ test("reduced motion disables the cyclic entry animation without blocking select
   await expect(highlight).toBeVisible();
   expect(await highlight.evaluate((element) => getComputedStyle(element, "::before").animationName)).toBe("none");
   await comment.click();
-  await expect(page.getByRole("region", { name: "流光卡片核" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "有神评" })).toBeVisible();
 });
 
 test("selects a real-structure modern reply and keeps the visual layer continuous", async ({ extension }) => {
@@ -332,7 +332,7 @@ test("selects a real-structure modern reply and keeps the visual layer continuou
   await expect(highlight).toHaveAttribute("data-e2e-identity", "continuous");
   await firstReply.click();
 
-  const confirm = page.getByRole("region", { name: "流光卡片核" });
+  const confirm = page.getByRole("region", { name: "有神评" });
   await expect(confirm).toBeVisible();
   await expect(confirm.getByRole("textbox", { name: "评论文字" })).toHaveValue("默认展示回复一。");
   await expect(confirm.getByRole("textbox", { name: "评论文字" })).not.toHaveValue(

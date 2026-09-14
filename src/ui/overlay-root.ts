@@ -142,7 +142,7 @@ export class OverlayRoot extends EventTarget {
     if (!this.root || this.destroyed) return;
 
     this.root.innerHTML = `<style>${overlayCss}</style><div class="ccg-ui">
-      ${this.confirmation ? "" : `<button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>流光卡片核</span></button>`}
+      ${this.confirmation ? "" : `<button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>有神评</span></button>`}
       ${this.active && !this.confirmation ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
       <div class="ccg-panel-slot"></div>
       ${this.status ? `<div class="ccg-status ccg-status--${this.status.kind}" role="status"><span></span>${this.status.action === "retry-download" ? `<button type="button" aria-label="再次下载">再次下载</button>` : ""}<button type="button" aria-label="关闭提示">×</button></div>` : ""}

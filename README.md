@@ -50,7 +50,7 @@ npm run build
 3. 点击“加载已解压的扩展程序”。
 4. 选择当前项目的 `dist` 目录。
 5. 若目标视频页已经打开，请刷新该标签页；首次加载或点击扩展“重新加载”后，旧页面必须刷新才能重新注入 content script。
-6. 打开 `https://www.bilibili.com/video/...` 视频页并确认右下角出现“流光卡片核”入口。
+6. 打开 `https://www.bilibili.com/video/...` 视频页并确认右下角出现“有神评”入口。
 
 生产 content script 仅匹配 `https://www.bilibili.com/video/*`。动态评论 DOM、站点改版、跨域封面策略或浏览器下载策略变化可能影响选择、封面加载或保存；本项目不声明支持其他平台、哔哩哔哩非视频页面或移动端页面。
 

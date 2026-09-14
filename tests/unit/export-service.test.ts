@@ -42,9 +42,9 @@ describe("PNG export service", () => {
     document.body.innerHTML = "";
   });
 
-  it("formats the Bilibili filename from zero-padded local time", () => {
+  it("formats the 有神评 filename from zero-padded local time", () => {
     expect(createPngFilename(() => new Date(2026, 0, 2, 3, 4, 5))).toBe(
-      "神评卡片-bilibili-20260102-030405.png",
+      "有神评-20260102-030405.png",
     );
   });
 
@@ -99,7 +99,7 @@ describe("PNG export service", () => {
     date.setFullYear(7, 0, 2);
     date.setHours(3, 4, 5, 0);
 
-    expect(createPngFilename(() => date)).toBe("神评卡片-bilibili-00070102-030405.png");
+    expect(createPngFilename(() => date)).toBe("有神评-00070102-030405.png");
   });
 
   it("requests an image/png Blob and revokes its URL only after Chrome accepts the download", async () => {

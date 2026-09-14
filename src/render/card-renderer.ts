@@ -8,7 +8,6 @@ import {
 } from "./styles";
 import { layoutText } from "./text-layout";
 
-const BILIBILI_MARK_URL = new URL("../assets/bilibili-mark.svg", import.meta.url).href;
 const IMAGE_TIMEOUT_MS = 5_000;
 const FONT_FAMILY = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
@@ -54,7 +53,6 @@ interface CardGeometry {
 }
 
 interface LoadedImages {
-  readonly mark: HTMLImageElement | null;
   readonly cover: HTMLImageElement | null;
   readonly coverFallbackUsed: boolean;
 }
@@ -181,42 +179,37 @@ function drawBorder(ctx: CanvasRenderingContext2D, geometry: CardGeometry, token
   });
 }
 
-function drawMarkFallback(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number): void {
-  ctx.strokeRect(x, y + height * 0.2, width, height * 0.72);
-  ctx.beginPath();
-  ctx.moveTo(x + width * 0.3, y + height * 0.2);
-  ctx.lineTo(x + width * 0.18, y);
-  ctx.moveTo(x + width * 0.7, y + height * 0.2);
-  ctx.lineTo(x + width * 0.82, y);
-  ctx.stroke();
-}
-
 function drawPlatform(
   ctx: CanvasRenderingContext2D,
   geometry: CardGeometry,
   tokens: CardStyleTokens,
-  mark: HTMLImageElement | null,
   videoTitle?: string,
 ): void {
   withSavedContext(ctx, () => {
-    const markHeight = geometry.width >= 1_900 ? 38 : geometry.width <= 1_080 ? 30 : 34;
-    const intrinsicWidth = mark ? Math.max(1, mark.naturalWidth || mark.width) : 96;
-    const intrinsicHeight = mark ? Math.max(1, mark.naturalHeight || mark.height) : 64;
-    const markWidth = Math.min(150, markHeight * intrinsicWidth / intrinsicHeight);
-    const markY = geometry.platformTop + (geometry.platformHeight - markHeight) / 2;
-    if (mark) {
-      ctx.drawImage(mark, geometry.contentX, markY, markWidth, markHeight);
-    } else {
-      ctx.strokeStyle = tokens.accent;
-      ctx.lineWidth = 4;
-      drawMarkFallback(ctx, geometry.contentX, markY, markWidth, markHeight);
-    }
+    const horizontal = geometry.width > geometry.height;
+    const brandFontSize = horizontal ? 28 : 32;
+    const taglineFontSize = horizontal ? 13 : 16;
+    const brandTop = geometry.platformTop + (horizontal ? 2 : 8);
+    ctx.fillStyle = tokens.accent;
+    ctx.font = `800 ${brandFontSize}px ${FONT_FAMILY}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("有神评", geometry.contentX, brandTop);
+
+    ctx.fillStyle = tokens.metadataText;
+    ctx.font = `500 ${taglineFontSize}px ${FONT_FAMILY}`;
+    const tagline = "有神评，让更多人看见";
+    ctx.fillText(tagline, geometry.contentX, brandTop + brandFontSize + 2);
+    const brandWidth = Math.max(
+      brandFontSize * 3,
+      ctx.measureText(tagline).width,
+    );
 
     ctx.fillStyle = tokens.metadataText;
     ctx.font = `600 30px ${FONT_FAMILY}`;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    const titleX = geometry.contentX + markWidth + 22;
+    const titleX = geometry.contentX + brandWidth + 22;
     const titleRight = geometry.contentX + geometry.contentWidth - (tokens.mark ? 96 : 0);
     const fittedTitle = videoTitle ? fitText(ctx, videoTitle, Math.max(0, titleRight - titleX)) : "";
     if (fittedTitle) {
@@ -236,27 +229,36 @@ function drawPlatform(
   });
 }
 
-function drawCoverCrop(
+function drawSourceLabel(
+  ctx: CanvasRenderingContext2D,
+  geometry: CardGeometry,
+  tokens: CardStyleTokens,
+): void {
+  withSavedContext(ctx, () => {
+    ctx.fillStyle = tokens.metadataText;
+    ctx.globalAlpha = 0.72;
+    ctx.font = `500 ${geometry.width > geometry.height ? 18 : 22}px ${FONT_FAMILY}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("内容来自 bilibili", geometry.contentX, geometry.height - geometry.margin);
+  });
+}
+
+function drawCoverContain(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
   geometry: CardGeometry,
 ): void {
   const sourceWidth = Math.max(1, image.naturalWidth || image.width);
   const sourceHeight = Math.max(1, image.naturalHeight || image.height);
-  const destinationRatio = geometry.contentWidth / geometry.coverHeight;
-  const sourceRatio = sourceWidth / sourceHeight;
-  let sourceX = 0;
-  let sourceY = 0;
-  let cropWidth = sourceWidth;
-  let cropHeight = sourceHeight;
-
-  if (sourceRatio > destinationRatio) {
-    cropWidth = sourceHeight * destinationRatio;
-    sourceX = (sourceWidth - cropWidth) / 2;
-  } else {
-    cropHeight = sourceWidth / destinationRatio;
-    sourceY = (sourceHeight - cropHeight) / 2;
-  }
+  const scale = Math.min(
+    geometry.contentWidth / sourceWidth,
+    geometry.coverHeight / sourceHeight,
+  );
+  const destinationWidth = sourceWidth * scale;
+  const destinationHeight = sourceHeight * scale;
+  const destinationX = geometry.contentX + (geometry.contentWidth - destinationWidth) / 2;
+  const destinationY = geometry.coverTop + (geometry.coverHeight - destinationHeight) / 2;
 
   withSavedContext(ctx, () => {
     ctx.beginPath();
@@ -264,14 +266,14 @@ function drawCoverCrop(
     ctx.clip();
     ctx.drawImage(
       image,
-      sourceX,
-      sourceY,
-      cropWidth,
-      cropHeight,
-      geometry.contentX,
-      geometry.coverTop,
-      geometry.contentWidth,
-      geometry.coverHeight,
+      0,
+      0,
+      sourceWidth,
+      sourceHeight,
+      destinationX,
+      destinationY,
+      destinationWidth,
+      destinationHeight,
     );
   });
 }
@@ -508,22 +510,15 @@ function createGeometry(
 }
 
 async function loadImages(input: RenderCardInput, dependencies: RenderDependencies): Promise<LoadedImages> {
-  let mark: HTMLImageElement | null = null;
-  try {
-    mark = await dependencies.loadImage(BILIBILI_MARK_URL, IMAGE_TIMEOUT_MS);
-  } catch {
-    mark = null;
-  }
-
   if (!input.options.includeCover || !input.source.videoCoverUrl) {
-    return { mark, cover: null, coverFallbackUsed: false };
+    return { cover: null, coverFallbackUsed: false };
   }
 
   try {
     const cover = await dependencies.loadImage(input.source.videoCoverUrl, IMAGE_TIMEOUT_MS);
-    return { mark, cover, coverFallbackUsed: false };
+    return { cover, coverFallbackUsed: false };
   } catch {
-    return { mark, cover: null, coverFallbackUsed: true };
+    return { cover: null, coverFallbackUsed: true };
   }
 }
 
@@ -555,11 +550,12 @@ export async function renderCard(input: RenderCardInput): Promise<RenderCardResu
   drawBackground(ctx, geometry, tokens);
   drawTextureAndBaseParticles(ctx, geometry, tokens);
   drawBorder(ctx, geometry, tokens);
-  drawPlatform(ctx, geometry, tokens, images.mark, input.source.videoTitle);
-  if (images.cover) drawCoverCrop(ctx, images.cover, geometry);
+  drawPlatform(ctx, geometry, tokens, input.source.videoTitle);
+  if (images.cover) drawCoverContain(ctx, images.cover, geometry);
   drawBody(ctx, geometry, tokens, input.source.content);
   drawMetadata(ctx, geometry, tokens, input.source);
   if (input.options.includeAttributes === true) drawAttributes(ctx, geometry, tokens, input.attributes);
+  drawSourceLabel(ctx, geometry, tokens);
   drawGameDecoration(ctx, geometry, tokens);
 
   return { canvas, coverFallbackUsed: images.coverFallbackUsed };
