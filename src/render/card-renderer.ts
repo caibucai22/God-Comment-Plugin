@@ -187,9 +187,10 @@ function drawPlatform(
 ): void {
   withSavedContext(ctx, () => {
     const horizontal = geometry.width > geometry.height;
-    const brandFontSize = horizontal ? 28 : 32;
-    const taglineFontSize = horizontal ? 13 : 16;
-    const brandTop = geometry.platformTop + (horizontal ? 2 : 8);
+    const brandFontSize = horizontal ? 20 : 22;
+    const taglineFontSize = horizontal ? 10 : 11;
+    const brandLockupHeight = brandFontSize + taglineFontSize + 2;
+    const brandTop = geometry.platformTop + (geometry.platformHeight - brandLockupHeight) / 2;
     ctx.fillStyle = tokens.accent;
     ctx.font = `800 ${brandFontSize}px ${FONT_FAMILY}`;
     ctx.textAlign = "left";
@@ -198,7 +199,7 @@ function drawPlatform(
 
     ctx.fillStyle = tokens.metadataText;
     ctx.font = `500 ${taglineFontSize}px ${FONT_FAMILY}`;
-    const tagline = "有神评，让更多人看见";
+    const tagline = "让更多人看见";
     ctx.fillText(tagline, geometry.contentX, brandTop + brandFontSize + 2);
     const brandWidth = Math.max(
       brandFontSize * 3,
@@ -463,7 +464,7 @@ function drawGameDecoration(
 function estimateCoverRatio(content: string, width: number, height: number): number {
   const estimatedLines = Math.max(1, Math.ceil(Array.from(content.trim()).length / 24));
   const progress = Math.min(1, Math.max(0, (estimatedLines - 1) / 14));
-  if (width > height) return 0.64 - progress * 0.22;
+  if (width > height) return 0.70 - progress * 0.28;
   if (height / width > 1.5) return 0.24 - progress * 0.06;
   return 0.28 - progress * 0.06;
 }
@@ -472,23 +473,38 @@ function createGeometry(
   width: number,
   height: number,
   source: CommentCardSource,
-  hasCover: boolean,
+  cover: HTMLImageElement | null,
   includeAttributes: boolean,
 ): CardGeometry {
   const horizontal = width > height;
   const margin = horizontal ? 54 : width === 1200 ? 80 : 72;
-  const contentX = margin;
-  const contentWidth = width - margin * 2;
+  const safeContentWidth = width - margin * 2;
   const platformTop = margin;
   const platformHeight = horizontal ? 60 : 84;
   const platformBottom = platformTop + platformHeight;
   const coverTop = platformBottom + (horizontal ? 14 : 28);
-  const coverHeight = hasCover ? height * estimateCoverRatio(source.content, width, height) : 0;
-  const bodyTop = hasCover ? coverTop + coverHeight + (horizontal ? 22 : 36) : platformBottom + 36;
+  const bodyGap = horizontal ? 12 : 36;
   const attributeTop = includeAttributes ? height - margin - 138 : height - margin;
   const attributeBaseline = attributeTop + 68;
   const metadataBottom = includeAttributes ? attributeTop - 38 : height - margin;
   const bodyBottom = metadataBottom - (source.publishedAt ? 104 : 62);
+  const sourceWidth = cover ? Math.max(1, cover.naturalWidth || cover.width) : 1;
+  const sourceHeight = cover ? Math.max(1, cover.naturalHeight || cover.height) : 1;
+  const coverAspectRatio = sourceWidth / sourceHeight;
+  const coverHeightLimit = horizontal
+    ? Math.min(
+        height * estimateCoverRatio(source.content, width, height),
+        Math.max(0, bodyBottom - coverTop - bodyGap - 48),
+      )
+    : height * 0.42;
+  const coverHeight = cover
+    ? Math.min(safeContentWidth / coverAspectRatio, coverHeightLimit)
+    : 0;
+  const contentWidth = cover
+    ? Math.min(safeContentWidth, coverHeight * coverAspectRatio)
+    : safeContentWidth;
+  const contentX = margin + (safeContentWidth - contentWidth) / 2;
+  const bodyTop = cover ? coverTop + coverHeight + bodyGap : platformBottom + 36;
 
   return {
     width,
@@ -542,7 +558,7 @@ export async function renderCard(input: RenderCardInput): Promise<RenderCardResu
     dimensions.width,
     dimensions.height,
     input.source,
-    images.cover !== null,
+    images.cover,
     input.options.includeAttributes === true,
   );
   const tokens = getStyleTokens(input.options.style, input.options.gameDecoration);

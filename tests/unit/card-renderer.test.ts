@@ -332,16 +332,14 @@ describe("renderCard", () => {
   });
 
   it.each([
-    { ratio: "3:4" as const, minimum: 0.22, maximum: 0.28 },
-    { ratio: "9:16" as const, minimum: 0.18, maximum: 0.24 },
-  ])("keeps $ratio covers inside its portrait media band", async ({ ratio, minimum, maximum }) => {
+    { ratio: "3:4" as const, expectedWidth: 1040 },
+    { ratio: "9:16" as const, expectedWidth: 936 },
+  ])("keeps $ratio covers at the full safe width across comment lengths", async ({ ratio, expectedWidth }) => {
     for (const content of ["短评", "中等长度评论".repeat(28), "很长的评论".repeat(240)]) {
       const rendered = await render({ source: { content }, options: { ratio } });
       const args = coverCall(rendered.canvas.context).args;
-      const coverRatio = (args[8] as number) / rendered.canvas.height;
 
-      expect(coverRatio).toBeGreaterThanOrEqual(minimum);
-      expect(coverRatio).toBeLessThanOrEqual(maximum);
+      expect(args[7]).toBeCloseTo(expectedWidth, 5);
       expect(args).toHaveLength(9);
       expect(rendered.result.coverFallbackUsed).toBe(false);
     }
@@ -392,6 +390,46 @@ describe("renderCard", () => {
     expect(destinationY).toBeGreaterThanOrEqual(128);
     expect(destinationX + destinationWidth).toBeLessThanOrEqual(1920 - 54);
     expect(destinationY + destinationHeight).toBeLessThanOrEqual(128 + 1080 * 0.7);
+  });
+
+  it.each([
+    { ratio: "3:4" as const, expectedWidth: 1040 },
+    { ratio: "9:16" as const, expectedWidth: 936 },
+  ])("uses the full safe content width for a standard video cover on $ratio", async ({ ratio, expectedWidth }) => {
+    const { canvas } = await render(
+      { options: { ratio } },
+      async (url) => url.includes("cover.jpg")
+        ? fakeImage(url, 1600, 900)
+        : fakeImage(url),
+    );
+    const args = coverCall(canvas.context).args;
+    const [, sourceX, sourceY, sourceWidth, sourceHeight, , , destinationWidth, destinationHeight] = args as number[];
+
+    expect([sourceX, sourceY, sourceWidth, sourceHeight]).toEqual([0, 0, 1600, 900]);
+    expect(destinationWidth).toBeCloseTo(expectedWidth, 5);
+    expect(destinationWidth / destinationHeight).toBeCloseTo(16 / 9, 5);
+  });
+
+  it("maximizes a short 16:9 cover and keeps the comment inside the same centered content column", async () => {
+    const { canvas } = await render({ source: { content: "短评" }, options: { ratio: "16:9" } });
+    const [, , , , , coverX, , coverWidth] = coverCall(canvas.context).args as number[];
+    const body = bodyCalls(canvas.context, getStyleTokens("warm", false).bodyText);
+
+    expect(coverWidth).toBeGreaterThanOrEqual(1300);
+    expect(body).not.toHaveLength(0);
+    expect(body[0].args[1]).toBeCloseTo(coverX, 5);
+    for (const line of body) expect(textBounds(line).right).toBeLessThanOrEqual(coverX + coverWidth);
+  });
+
+  it("keeps the two-line brand lockup near the visual height of the video title", async () => {
+    const { canvas } = await render({ options: { ratio: "16:9", includeCover: false } });
+    const brand = textCalls(canvas.context, "有神评")[0];
+    const tagline = textCalls(canvas.context, "让更多人看见")[0];
+    const title = textCalls(canvas.context, "测试视频标题")[0];
+    const fontSize = (call: RecordedCall) => Number(call.font.match(/(\d+(?:\.\d+)?)px/u)?.[1]);
+
+    expect(fontSize(brand) + fontSize(tagline)).toBeLessThanOrEqual(fontSize(title) * 1.2);
+    expect(tagline.args[0]).toBe("让更多人看见");
   });
 
   it("does not request a cover when disabled and expands the body into the media space", async () => {
@@ -584,7 +622,7 @@ describe("renderCard", () => {
 
     expect(loadedUrls).toHaveLength(0);
     expect(textCalls(canvas.context, "有神评")).toHaveLength(1);
-    expect(textCalls(canvas.context, "有神评，让更多人看见")).toHaveLength(1);
+    expect(textCalls(canvas.context, "让更多人看见")).toHaveLength(1);
     expect(textCalls(canvas.context, "内容来自 bilibili")).toHaveLength(1);
     expect(callsNamed(canvas.context, "drawImage")).toHaveLength(0);
   });
@@ -614,7 +652,7 @@ describe("renderCard", () => {
     });
 
     expect(textCalls(canvas.context, "有神评")).toHaveLength(1);
-    expect(textCalls(canvas.context, "有神评，让更多人看见")).toHaveLength(1);
+    expect(textCalls(canvas.context, "让更多人看见")).toHaveLength(1);
   });
 });
 
