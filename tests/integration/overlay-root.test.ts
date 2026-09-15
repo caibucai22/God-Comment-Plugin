@@ -35,6 +35,7 @@ describe("OverlayRoot", () => {
   afterEach(() => {
     overlays.splice(0).forEach((overlay) => overlay.destroy());
     document.body.innerHTML = "";
+    vi.unstubAllGlobals();
   });
 
   function createOverlay(): OverlayRoot {
@@ -98,7 +99,49 @@ describe("OverlayRoot", () => {
     expect(events).toEqual(["toggle", "exit"]);
   });
 
-  it("removes its host and keeps retained entry and exit controls inert after destroy", () => {
+  it("renders a semantic pixel mascot with a popping mini-card", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+    const entry = overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]')!;
+
+    expect(entry.querySelector('[data-pixel-asset="floating-mascot"]')).not.toBeNull();
+    expect(entry.querySelector(".ccg-entry__mini-card")?.textContent).toBe("有神评");
+  });
+
+  it("clicks below 6px movement but drags and persists at 6px without toggling", async () => {
+    const set = vi.fn(async () => undefined);
+    vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({})), set } } });
+    const overlay = createOverlay();
+    const toggles: string[] = [];
+    overlay.addEventListener("toggle-selection", () => toggles.push("toggle"));
+    overlay.mount();
+    const entry = overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement;
+    Object.defineProperty(entry, "offsetHeight", { value: 64 });
+    const dispatchPointer = (type: string, clientX: number, clientY: number, pointerId = 1) => {
+      const event = new Event(type, { bubbles: true });
+      Object.assign(event, { clientX, clientY, pointerId });
+      entry.dispatchEvent(event);
+    };
+
+    dispatchPointer("pointerdown", 900, 400);
+    dispatchPointer("pointermove", 904, 403);
+    dispatchPointer("pointerup", 904, 403);
+    entry.click();
+    expect(toggles).toEqual(["toggle"]);
+
+    dispatchPointer("pointerdown", 900, 400);
+    dispatchPointer("pointermove", 906, 400);
+    dispatchPointer("pointerup", 906, 400);
+    entry.click();
+    await Promise.resolve();
+
+    expect(toggles).toEqual(["toggle"]);
+    expect(set).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes its host and keeps retained entry, drag, and exit controls inert after destroy", async () => {
+    const set = vi.fn(async () => undefined);
+    vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({})), set } } });
     const overlay = createOverlay();
     const toggles: string[] = [];
     const exits: string[] = [];
@@ -111,13 +154,24 @@ describe("OverlayRoot", () => {
 
     overlay.destroy();
     expect(() => entry.click()).not.toThrow();
+    const pointerDown = new Event("pointerdown", { bubbles: true });
+    Object.assign(pointerDown, { clientX: 100, clientY: 100, pointerId: 1 });
+    const pointerMove = new Event("pointermove", { bubbles: true });
+    Object.assign(pointerMove, { clientX: 200, clientY: 200, pointerId: 1 });
+    const pointerUp = new Event("pointerup", { bubbles: true });
+    Object.assign(pointerUp, { clientX: 200, clientY: 200, pointerId: 1 });
+    expect(() => entry.dispatchEvent(pointerDown)).not.toThrow();
+    expect(() => entry.dispatchEvent(pointerMove)).not.toThrow();
+    expect(() => entry.dispatchEvent(pointerUp)).not.toThrow();
     expect(() => exit.click()).not.toThrow();
+    await Promise.resolve();
     overlay.mount();
 
     expect(document.querySelector("[data-ccg-overlay-root]")).toBeNull();
     expect(overlay.shadowRoot).toBeNull();
     expect(toggles).toEqual([]);
     expect(exits).toEqual([]);
+    expect(set).not.toHaveBeenCalled();
   });
 
   it("replaces editing with the generating state while busy", () => {

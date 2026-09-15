@@ -77,14 +77,14 @@
 - Produces: `FloatingEntryPlacement { side: "left" | "right"; yRatio: number }`, `loadFloatingEntryPlacement()`, `saveFloatingEntryPlacement(value)`, plus pure snap/clamp helpers.
 - Consumes: `mascot-master.png`, current `toggle-selection`, Shadow DOM lifecycle, and `chrome.storage.local`.
 
-- [ ] Add failing unit tests for default `{ side: "right", yRatio: 0.86 }`, domain validation, nearest-edge snap, resize clamp, storage rejection fallback, and the standalone `floatingEntryPlacement` key.
-- [ ] Add failing overlay tests proving movement below 6px clicks once while movement at or above 6px only drags, captures/releases the pointer, snaps, persists once, and is inert after destroy.
-- [ ] Run `npx vitest run tests/unit/floating-entry-placement.test.ts tests/integration/overlay-root.test.ts` and retain missing-module/behavior RED.
-- [ ] Implement placement storage separately from `CardPreferences`; never write Bilibili localStorage.
-- [ ] Replace the text capsule with a semantic mascot button and CSS mini-card; add pointerdown/move/up/cancel, a 6px Euclidean threshold, nearest-side snap, resize clamp, and non-blocking persistence.
-- [ ] Add restrained breathing/blinking/card-pop cycles and disable cycles under `prefers-reduced-motion`; keep prompt/Panel/status stacking correct.
-- [ ] Extend Playwright to drag, verify no toggle, reload and restore, resize and clamp, then click to enter selection.
-- [ ] Run focused Vitest and the new Playwright grep; commit as `feat: add draggable pixel mascot entry`.
+- [x] Add failing unit tests for default `{ side: "right", yRatio: 0.86 }`, domain validation, nearest-edge snap, resize clamp, storage rejection fallback, and the standalone `floatingEntryPlacement` key.
+- [x] Add failing overlay tests proving movement below 6px clicks once while movement at or above 6px only drags, captures/releases the pointer, snaps, persists once, and is inert after destroy.
+- [x] Run `npx vitest run tests/unit/floating-entry-placement.test.ts tests/integration/overlay-root.test.ts` and retain missing-module/behavior RED.
+- [x] Implement placement storage separately from `CardPreferences`; never write Bilibili localStorage.
+- [x] Replace the text capsule with a semantic mascot button and CSS mini-card; add pointerdown/move/up/cancel, a 6px Euclidean threshold, nearest-side snap, resize clamp, and non-blocking persistence.
+- [x] Add restrained breathing/card-pop cycles and disable cycles under `prefers-reduced-motion`; keep prompt/Panel/status stacking correct.
+- [x] Extend Playwright to drag, verify no toggle, reload and restore, resize and clamp, then click to enter selection.
+- [x] Run focused Vitest and the new Playwright grep; commit as `feat: add draggable pixel mascot entry`.
 
 ### Task 4: Cross-platform GitHub CI
 

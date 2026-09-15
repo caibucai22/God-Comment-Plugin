@@ -296,6 +296,39 @@ test("supports every selection exit while wheel keeps selection active", async (
   await expect(prompt).toBeHidden();
 });
 
+test("drags the pixel mascot, restores its snapped edge, and keeps click selection working", async ({ extension }) => {
+  const { page, url, errors } = extension;
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await page.goto(url);
+  const entry = page.getByRole("button", { name: "开启评论选择" });
+  await expect(entry.locator('[data-pixel-asset="floating-mascot"]')).toBeVisible();
+
+  const initial = await entry.boundingBox();
+  expect(initial).not.toBeNull();
+  await page.mouse.move(initial!.x + 32, initial!.y + 32);
+  await page.mouse.down();
+  await page.mouse.move(40, 230, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByText("请选择一条评论")).toBeHidden();
+
+  const snapped = await entry.boundingBox();
+  expect(snapped).not.toBeNull();
+  expect(snapped!.x).toBeLessThanOrEqual(17);
+  await page.reload();
+  await expect(entry).toBeVisible();
+  await expect.poll(async () => (await entry.boundingBox())?.x).toBeLessThanOrEqual(17);
+
+  await page.setViewportSize({ width: 700, height: 260 });
+  const resized = await entry.boundingBox();
+  expect(resized).not.toBeNull();
+  expect(resized!.y).toBeGreaterThanOrEqual(16);
+  expect(resized!.y + resized!.height).toBeLessThanOrEqual(244);
+
+  await entry.click();
+  await expect(page.getByText("请选择一条评论")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("reduced motion disables the cyclic entry animation without blocking selection", async ({ extension }) => {
   const { page, url } = extension;
   await page.emulateMedia({ reducedMotion: "reduce" });

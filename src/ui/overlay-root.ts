@@ -1,7 +1,17 @@
 import type { CardPreferences, CardRatio, CommentCardSource, GenerateOptions } from "../domain/types";
+import {
+  DEFAULT_FLOATING_ENTRY_PLACEMENT,
+  clampFloatingEntryPlacement,
+  loadFloatingEntryPlacement,
+  saveFloatingEntryPlacement,
+  snapFloatingEntryPlacement,
+  type FloatingEntryPlacement,
+} from "../storage/floating-entry-placement";
 import { createExtensionPanel } from "./extension-panel";
 import type { PanelState } from "./panel-state";
 import overlayCss from "./overlay.css?inline";
+
+const floatingMascotAsset = new URL("../assets/pixel-panel/generated/mascot-master.png", import.meta.url).href;
 
 type StatusKind = "success" | "error" | "info";
 
@@ -27,6 +37,11 @@ export class OverlayRoot extends EventTarget {
   private previewRatio: CardRatio | undefined;
   private savedDimensions: string | undefined;
   private destroyed = false;
+  private floatingPlacement: FloatingEntryPlacement = { ...DEFAULT_FLOATING_ENTRY_PLACEMENT };
+  private drag: { pointerId: number; startX: number; startY: number; moved: boolean } | null = null;
+  private suppressEntryClick = false;
+  private floatingPlacementRevision = 0;
+  private readonly handleResize = (): void => this.applyFloatingPlacement();
 
   constructor(private readonly document: Document) {
     super();
@@ -43,7 +58,14 @@ export class OverlayRoot extends EventTarget {
     this.host.dataset.ccgOverlayRoot = "";
     this.root = this.host.attachShadow({ mode: "open" });
     this.document.body.append(this.host);
+    this.document.defaultView?.addEventListener("resize", this.handleResize);
     this.render();
+    const placementRevision = this.floatingPlacementRevision;
+    void loadFloatingEntryPlacement().then((placement) => {
+      if (this.destroyed || placementRevision !== this.floatingPlacementRevision) return;
+      this.floatingPlacement = placement;
+      this.applyFloatingPlacement();
+    });
   }
 
   setSelectionActive(active: boolean): void {
@@ -59,6 +81,7 @@ export class OverlayRoot extends EventTarget {
     this.previewUrl = undefined;
     this.previewDimensions = undefined;
     this.previewRatio = undefined;
+    this.drag = null;
     this.savedDimensions = undefined;
     this.failureMessage = undefined;
     this.status = null;
@@ -125,6 +148,7 @@ export class OverlayRoot extends EventTarget {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.document.defaultView?.removeEventListener("resize", this.handleResize);
     this.host?.remove();
     this.host = null;
     this.root = null;
@@ -142,15 +166,14 @@ export class OverlayRoot extends EventTarget {
     if (!this.root || this.destroyed) return;
 
     this.root.innerHTML = `<style>${overlayCss}</style><div class="ccg-ui">
-      ${this.confirmation ? "" : `<button type="button" class="ccg-entry" aria-label="开启评论选择"><span>✦</span><span>有神评</span></button>`}
+      ${this.confirmation ? "" : `<button type="button" class="ccg-entry" aria-label="开启评论选择"><span class="ccg-entry__mascot"><img src="${floatingMascotAsset}" alt="" data-pixel-asset="floating-mascot"></span><span class="ccg-entry__mini-card">有神评</span></button>`}
       ${this.active && !this.confirmation ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
       <div class="ccg-panel-slot"></div>
       ${this.status ? `<div class="ccg-status ccg-status--${this.status.kind}" role="status"><span></span>${this.status.action === "retry-download" ? `<button type="button" aria-label="再次下载">再次下载</button>` : ""}<button type="button" aria-label="关闭提示">×</button></div>` : ""}
     </div>`;
 
-    this.root.querySelector('[aria-label="开启评论选择"]')?.addEventListener("click", () => {
-      this.emit("toggle-selection");
-    });
+    const entry = this.root.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement | null;
+    if (entry) this.bindFloatingEntry(entry);
     this.root.querySelector('[aria-label="退出评论选择"]')?.addEventListener("click", () => this.emit("exit-selection"));
     const statusMessage = this.root.querySelector(".ccg-status span");
     if (statusMessage && this.status) statusMessage.textContent = this.status.message;
@@ -245,6 +268,69 @@ export class OverlayRoot extends EventTarget {
     const returnEditing = shell.querySelector('[aria-label="返回修改"]') as HTMLButtonElement | null;
     if (returnEditing) returnEditing.disabled = this.saveBusy;
     (shell.querySelector('[aria-label="关闭制作面板"]') as HTMLButtonElement).disabled = this.generationBusy || this.saveBusy;
+  }
+
+  private bindFloatingEntry(entry: HTMLButtonElement): void {
+    this.applyFloatingPlacement(entry);
+    entry.addEventListener("click", () => {
+      if (this.destroyed) return;
+      if (this.suppressEntryClick) {
+        this.suppressEntryClick = false;
+        return;
+      }
+      this.emit("toggle-selection");
+    });
+    entry.addEventListener("pointerdown", (event) => {
+      if (this.destroyed) return;
+      this.drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false };
+      entry.setPointerCapture?.(event.pointerId);
+    });
+    entry.addEventListener("pointermove", (event) => {
+      if (this.destroyed || !this.drag || event.pointerId !== this.drag.pointerId) return;
+      const distance = Math.hypot(event.clientX - this.drag.startX, event.clientY - this.drag.startY);
+      if (distance < 6) return;
+      this.drag.moved = true;
+      this.floatingPlacementRevision += 1;
+      const view = this.document.defaultView;
+      if (!view) return;
+      this.floatingPlacement = snapFloatingEntryPlacement(
+        event.clientX,
+        event.clientY,
+        view.innerWidth,
+        view.innerHeight,
+      );
+      this.applyFloatingPlacement(entry);
+    });
+    entry.addEventListener("pointerup", (event) => {
+      if (this.destroyed || !this.drag || event.pointerId !== this.drag.pointerId) return;
+      entry.releasePointerCapture?.(event.pointerId);
+      if (this.drag.moved) {
+        this.suppressEntryClick = true;
+        void saveFloatingEntryPlacement(this.floatingPlacement);
+      }
+      this.drag = null;
+    });
+    entry.addEventListener("pointercancel", (event) => {
+      if (this.destroyed || !this.drag || event.pointerId !== this.drag.pointerId) return;
+      entry.releasePointerCapture?.(event.pointerId);
+      this.drag = null;
+      this.applyFloatingPlacement(entry);
+    });
+  }
+
+  private applyFloatingPlacement(entry?: HTMLButtonElement): void {
+    const target = entry ?? this.root?.querySelector<HTMLButtonElement>('[aria-label="开启评论选择"]');
+    const view = this.document.defaultView;
+    if (!target || !view) return;
+    const rendered = clampFloatingEntryPlacement(
+      this.floatingPlacement,
+      view.innerHeight,
+      target.offsetHeight || 64,
+    );
+    target.style.top = `${rendered.top}px`;
+    target.style.left = rendered.side === "left" ? "16px" : "auto";
+    target.style.right = rendered.side === "right" ? "16px" : "auto";
+    target.dataset.side = rendered.side;
   }
 
   private emit(
