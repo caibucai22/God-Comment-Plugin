@@ -1,16 +1,30 @@
 :host { all: initial; }
 .ccg-ui { position: fixed; right: 22px; bottom: 22px; z-index: 2147483647; color: #f7f8ff; font: 13px/1.45 ui-sans-serif, system-ui, sans-serif; }
-.ccg-entry, .ccg-selection-prompt, .ccg-confirm, .ccg-status { box-sizing: border-box; border: 1px solid rgba(157, 220, 255, .42); background: linear-gradient(135deg, rgba(10, 25, 48, .96), rgba(43, 25, 69, .96)); box-shadow: 0 0 12px rgba(104, 213, 255, .25), 0 0 10px rgba(248, 146, 203, .12); }
-.ccg-entry { position: fixed; display: grid; place-items: center; width: 64px; height: 64px; padding: 0; color: inherit; cursor: grab; border-radius: 12px; touch-action: none; user-select: none; }
+.ccg-entry, .ccg-confirm, .ccg-status { box-sizing: border-box; border: 1px solid rgba(157, 220, 255, .42); background: linear-gradient(135deg, rgba(10, 25, 48, .96), rgba(43, 25, 69, .96)); box-shadow: 0 0 12px rgba(104, 213, 255,.25), 0 0 10px rgba(248,146,203,.12); }
+.ccg-entry-cluster { position: fixed; width: 64px; height: 64px; }
+.ccg-entry { position: relative; z-index: 2; display: grid; place-items: center; width: 64px; height: 64px; padding: 0; color: inherit; cursor: grab; border-radius: 12px; touch-action: none; user-select: none; }
 .ccg-entry:active { cursor: grabbing; }
 .ccg-entry::before { position: absolute; inset: 0; border-radius: inherit; content: ""; background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(255,232,240,.96)); box-shadow: inset 0 0 0 2px #fb7299; }
 .ccg-entry__mascot { position: relative; z-index: 1; display: block; width: 48px; height: 48px; animation: ccg-mascot-breathe 2.8s ease-in-out infinite; }
 .ccg-entry__mascot img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; -webkit-user-drag: none; }
-.ccg-entry__mini-card { position: absolute; z-index: 2; right: 48px; bottom: 7px; width: max-content; padding: 4px 7px; color: #4b3040; border: 1px solid #fb7299; border-radius: 4px; background: #fff; box-shadow: 2px 2px 0 rgba(230,92,132,.28); font-size: 11px; font-weight: 700; animation: ccg-mini-card-pop 3.6s steps(1, end) infinite; pointer-events: none; }
-.ccg-entry[data-side="left"] .ccg-entry__mini-card { right: auto; left: 48px; }
-.ccg-selection-prompt { display: flex; gap: 12px; align-items: center; width: max-content; margin: 8px 0 0 auto; padding: 8px 10px; border-radius: 10px; }
+.ccg-entry-spray { position: absolute; z-index: 1; inset: 0; overflow: visible; pointer-events: none; }
+.ccg-entry-spray__card { position: absolute; left: 50%; bottom: 36px; display: grid; place-items: center; width: 48px; height: 20px; color: #53213e; border: 1.5px solid #fb7299; border-radius: 3px; background: rgba(255,255,255,.96); box-shadow: 1px 1px 0 rgba(0,174,236,.35); font-size: 9px; font-weight: 800; opacity: 0; transform-origin: 50% 100%; }
+.ccg-entry-spray__card--1 { --ccg-spray-x: -50px; --ccg-spray-y: -54px; --ccg-spray-rotate: -10deg; border-color: #00aeec; }
+.ccg-entry-spray__card--2 { --ccg-spray-x: 1px; --ccg-spray-y: -66px; --ccg-spray-rotate: 8deg; }
+.ccg-entry-spray__card--3 { --ccg-spray-x: -42px; --ccg-spray-y: -28px; --ccg-spray-rotate: -15deg; width: 38px; }
+.ccg-entry-spray__card--4 { --ccg-spray-x: 19px; --ccg-spray-y: -31px; --ccg-spray-rotate: 13deg; width: 38px; border-color: #00aeec; }
+.ccg-entry-cluster:not([data-selection-active="true"]) .ccg-entry-spray__card { animation: ccg-card-spray 7s cubic-bezier(.2,.75,.25,1) infinite; }
+.ccg-entry-spray__card--2 { animation-delay: 70ms !important; }
+.ccg-entry-spray__card--3 { animation-delay: 120ms !important; }
+.ccg-entry-spray__card--4 { animation-delay: 170ms !important; }
+.ccg-entry-spray__card--selected { bottom: 49px; width: 44px; height: 19px; opacity: .72; transform: translate(-50%, -24px) rotate(-6deg); animation: ccg-selected-card 2.8s ease-in-out infinite; }
+.ccg-selection-prompt { position: absolute; z-index: 3; top: 82px; display: flex; gap: 8px; align-items: center; box-sizing: border-box; width: 188px; height: 40px; padding: 6px 7px 6px 10px; color: #3d2034; border: 2px solid #fb7299; border-radius: 8px; background: rgba(255,255,255,.98); box-shadow: 2px 2px 0 rgba(0,174,236,.18); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.ccg-entry-cluster[data-side="right"] .ccg-selection-prompt { right: 0; }
+.ccg-entry-cluster[data-side="left"] .ccg-selection-prompt { left: 0; }
+.ccg-selection-prompt__status { width: 8px; height: 8px; flex: 0 0 auto; background: #fb7299; box-shadow: 2px 0 0 rgba(0,174,236,.22); }
 button { font: inherit; }
-.ccg-selection-prompt button, .ccg-status button { color: #dff8ff; background: transparent; border: 0; cursor: pointer; }
+.ccg-selection-prompt button { height: 27px; margin-left: auto; padding: 0 9px; color: #785f73; border: 1px solid #b9aabd; border-radius: 6px; background: #fff; cursor: pointer; }
+.ccg-status button { color: #dff8ff; background: transparent; border: 0; cursor: pointer; }
 .ccg-panel-slot { margin-top: 10px; }
 .ccg-panel-slot:has(.ccg-extension-panel) { margin-top: 0; }
 .ccg-confirm { width: 286px; padding: 16px; border-radius: 16px; }
@@ -32,7 +46,8 @@ button { font: inherit; }
 .ccg-status--error { border-color: #ff9eaf; }
 @keyframes ccg-flow { to { background-position: 240% 0; } }
 @keyframes ccg-mascot-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-@keyframes ccg-mini-card-pop { 0%, 20%, 100% { opacity: 0; transform: translateX(5px) scale(.9); } 28%, 78% { opacity: 1; transform: translateX(0) scale(1); } 86% { opacity: 0; transform: translateX(-3px) scale(.96); } }
+@keyframes ccg-card-spray { 0%, 68%, 100% { opacity: 0; transform: translate(-50%, 8px) scale(.72) rotate(0); } 73% { opacity: .95; } 78%, 88% { opacity: 1; transform: translate(calc(-50% + var(--ccg-spray-x)), var(--ccg-spray-y)) scale(1) rotate(var(--ccg-spray-rotate)); } 93% { opacity: 0; transform: translate(calc(-50% + var(--ccg-spray-x)), calc(var(--ccg-spray-y) - 3px)) scale(.96) rotate(var(--ccg-spray-rotate)); } }
+@keyframes ccg-selected-card { 0%, 100% { opacity: .58; transform: translate(-50%, -22px) rotate(-6deg); } 50% { opacity: .78; transform: translate(-50%, -25px) rotate(-4deg); } }
 
 .ccg-extension-panel,
 .ccg-extension-panel *,

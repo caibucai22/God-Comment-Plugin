@@ -166,8 +166,13 @@ export class OverlayRoot extends EventTarget {
     if (!this.root || this.destroyed) return;
 
     this.root.innerHTML = `<style>${overlayCss}</style><div class="ccg-ui">
-      ${this.confirmation ? "" : `<button type="button" class="ccg-entry" aria-label="开启评论选择"><span class="ccg-entry__mascot"><img src="${floatingMascotAsset}" alt="" draggable="false" data-pixel-asset="floating-mascot"></span><span class="ccg-entry__mini-card">有神评</span></button>`}
-      ${this.active && !this.confirmation ? `<div class="ccg-selection-prompt"><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
+      ${this.confirmation ? "" : `<div class="ccg-entry-cluster" data-selection-active="${this.active}">
+        <div class="ccg-entry-spray" aria-hidden="true">${this.active
+          ? `<span class="ccg-entry-spray__card ccg-entry-spray__card--selected">有神评</span>`
+          : `<span class="ccg-entry-spray__card ccg-entry-spray__card--1">有神评</span><span class="ccg-entry-spray__card ccg-entry-spray__card--2">有神评</span><span class="ccg-entry-spray__card ccg-entry-spray__card--3">神评</span><span class="ccg-entry-spray__card ccg-entry-spray__card--4">神评</span>`}</div>
+        <button type="button" class="ccg-entry" aria-label="开启评论选择"><span class="ccg-entry__mascot"><img src="${floatingMascotAsset}" alt="" draggable="false" data-pixel-asset="floating-mascot"></span></button>
+        ${this.active ? `<div class="ccg-selection-prompt"><span class="ccg-selection-prompt__status" aria-hidden="true"></span><span>请选择一条评论</span><button type="button" aria-label="退出评论选择">退出</button></div>` : ""}
+      </div>`}
       <div class="ccg-panel-slot"></div>
       ${this.status ? `<div class="ccg-status ccg-status--${this.status.kind}" role="status"><span></span>${this.status.action === "retry-download" ? `<button type="button" aria-label="再次下载">再次下载</button>` : ""}<button type="button" aria-label="关闭提示">×</button></div>` : ""}
     </div>`;
@@ -323,15 +328,17 @@ export class OverlayRoot extends EventTarget {
     const target = entry ?? this.root?.querySelector<HTMLButtonElement>('[aria-label="开启评论选择"]');
     const view = this.document.defaultView;
     if (!target || !view) return;
+    const cluster = target.closest<HTMLElement>(".ccg-entry-cluster");
+    if (!cluster) return;
     const rendered = clampFloatingEntryPlacement(
       this.floatingPlacement,
       view.innerHeight,
-      target.offsetHeight || 64,
+      this.active ? 122 : 64,
     );
-    target.style.top = `${rendered.top}px`;
-    target.style.left = rendered.side === "left" ? "16px" : "auto";
-    target.style.right = rendered.side === "right" ? "16px" : "auto";
-    target.dataset.side = rendered.side;
+    cluster.style.top = `${rendered.top}px`;
+    cluster.style.left = rendered.side === "left" ? "16px" : "auto";
+    cluster.style.right = rendered.side === "right" ? "16px" : "auto";
+    cluster.dataset.side = rendered.side;
   }
 
   private emit(

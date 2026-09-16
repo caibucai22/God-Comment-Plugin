@@ -325,7 +325,29 @@ test("drags the pixel mascot, restores its snapped edge, and keeps click selecti
   expect(resized!.y + resized!.height).toBeLessThanOrEqual(244);
 
   await entry.click();
-  await expect(page.getByText("请选择一条评论")).toBeVisible();
+  const prompt = page.getByText("请选择一条评论");
+  await expect(prompt).toBeVisible();
+  const activeGeometry = await page.evaluate(() => {
+    const host = document.querySelector<HTMLElement>("[data-ccg-overlay-root]");
+    const root = host?.shadowRoot;
+    const mascot = root?.querySelector<HTMLElement>('[aria-label="开启评论选择"]');
+    const prompt = root?.querySelector<HTMLElement>(".ccg-selection-prompt");
+    const mascotBounds = mascot?.getBoundingClientRect();
+    const promptBounds = prompt?.getBoundingClientRect();
+    return mascotBounds && promptBounds
+      ? {
+          gap: promptBounds.top - mascotBounds.bottom,
+          promptLeft: promptBounds.left,
+          promptRight: promptBounds.right,
+          viewportWidth: window.innerWidth,
+        }
+      : null;
+  });
+  expect(activeGeometry).not.toBeNull();
+  expect(activeGeometry!.gap).toBeGreaterThanOrEqual(16);
+  expect(activeGeometry!.gap).toBeLessThanOrEqual(22);
+  expect(activeGeometry!.promptLeft).toBeGreaterThanOrEqual(0);
+  expect(activeGeometry!.promptRight).toBeLessThanOrEqual(activeGeometry!.viewportWidth);
   expect(errors).toEqual([]);
 });
 

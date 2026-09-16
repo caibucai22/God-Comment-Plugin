@@ -81,7 +81,7 @@ describe("OverlayRoot", () => {
     expect(document.querySelectorAll("[data-ccg-overlay-root]")).toHaveLength(1);
     expect(document.head.querySelector("style[data-ccg-overlay]")).toBeNull();
     expect(overlay.shadowRoot?.querySelector(".ccg-entry")).not.toBeNull();
-    expect(overlay.shadowRoot?.querySelector(".ccg-entry")?.textContent).toContain("有神评");
+    expect(overlay.shadowRoot?.querySelector(".ccg-entry-cluster")?.textContent).toContain("有神评");
   });
 
   it("emits selection commands from the entry and active prompt", () => {
@@ -99,13 +99,31 @@ describe("OverlayRoot", () => {
     expect(events).toEqual(["toggle", "exit"]);
   });
 
-  it("renders a semantic pixel mascot with a popping mini-card", () => {
+  it("renders the idle mascot with four restrained spray cards in one floating cluster", () => {
     const overlay = createOverlay();
     overlay.mount();
     const entry = overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]')!;
+    const cluster = overlay.shadowRoot!.querySelector(".ccg-entry-cluster");
 
     expect(entry.querySelector('[data-pixel-asset="floating-mascot"]')).not.toBeNull();
-    expect(entry.querySelector(".ccg-entry__mini-card")?.textContent).toBe("有神评");
+    expect(cluster?.contains(entry)).toBe(true);
+    expect(cluster?.querySelectorAll(".ccg-entry-spray__card")).toHaveLength(4);
+    expect(cluster?.querySelector(".ccg-selection-prompt")).toBeNull();
+  });
+
+  it("anchors a quieter single-card selection prompt below the same mascot cluster", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+
+    overlay.setSelectionActive(true);
+
+    const cluster = overlay.shadowRoot!.querySelector(".ccg-entry-cluster");
+    const prompt = cluster?.querySelector(".ccg-selection-prompt");
+    expect(cluster?.getAttribute("data-selection-active")).toBe("true");
+    expect(cluster?.querySelectorAll(".ccg-entry-spray__card")).toHaveLength(1);
+    expect(cluster?.querySelector(".ccg-entry-spray__card")?.textContent).toBe("有神评");
+    expect(prompt?.textContent).toContain("请选择一条评论");
+    expect(prompt?.querySelector('[aria-label="退出评论选择"]')).not.toBeNull();
   });
 
   it("prevents native image dragging from cancelling the pointer drag gesture", () => {
