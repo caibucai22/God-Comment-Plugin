@@ -108,6 +108,19 @@ describe("OverlayRoot", () => {
     expect(entry.querySelector(".ccg-entry__mini-card")?.textContent).toBe("有神评");
   });
 
+  it("prevents native image dragging from cancelling the pointer drag gesture", () => {
+    const overlay = createOverlay();
+    overlay.mount();
+    const entry = overlay.shadowRoot!.querySelector('[aria-label="开启评论选择"]') as HTMLButtonElement;
+    const mascot = entry.querySelector('[data-pixel-asset="floating-mascot"]') as HTMLImageElement;
+    const dragStart = new Event("dragstart", { bubbles: true, cancelable: true });
+
+    mascot.dispatchEvent(dragStart);
+
+    expect(mascot.draggable).toBe(false);
+    expect(dragStart.defaultPrevented).toBe(true);
+  });
+
   it("clicks below 6px movement but drags and persists at 6px without toggling", async () => {
     const set = vi.fn(async () => undefined);
     vi.stubGlobal("chrome", { storage: { local: { get: vi.fn(async () => ({})), set } } });
