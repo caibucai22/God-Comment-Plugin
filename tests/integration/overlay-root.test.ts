@@ -109,6 +109,7 @@ describe("OverlayRoot", () => {
     expect(cluster?.contains(entry)).toBe(true);
     expect(cluster?.querySelectorAll(".ccg-entry-spray__card")).toHaveLength(4);
     expect(cluster?.querySelector(".ccg-selection-prompt")).toBeNull();
+    expect(overlay.shadowRoot?.querySelector("style")?.textContent).toContain("ccg-card-spray 5s");
   });
 
   it("anchors a quieter single-card selection prompt below the same mascot cluster", () => {

@@ -13,7 +13,7 @@
 .ccg-entry-spray__card--2 { --ccg-spray-x: 1px; --ccg-spray-y: -66px; --ccg-spray-rotate: 8deg; }
 .ccg-entry-spray__card--3 { --ccg-spray-x: -42px; --ccg-spray-y: -28px; --ccg-spray-rotate: -15deg; width: 38px; }
 .ccg-entry-spray__card--4 { --ccg-spray-x: 19px; --ccg-spray-y: -31px; --ccg-spray-rotate: 13deg; width: 38px; border-color: #00aeec; }
-.ccg-entry-cluster:not([data-selection-active="true"]) .ccg-entry-spray__card { animation: ccg-card-spray 7s cubic-bezier(.2,.75,.25,1) infinite; }
+.ccg-entry-cluster:not([data-selection-active="true"]) .ccg-entry-spray__card { animation: ccg-card-spray 5s cubic-bezier(.2,.75,.25,1) infinite; }
 .ccg-entry-spray__card--2 { animation-delay: 70ms !important; }
 .ccg-entry-spray__card--3 { animation-delay: 120ms !important; }
 .ccg-entry-spray__card--4 { animation-delay: 170ms !important; }
