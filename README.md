@@ -33,6 +33,24 @@ git diff --check
 
 GitHub Actions 会在 pull request 和推送到 `master` 时使用 Node.js 22 执行同一套跨平台门禁。CI workflow 采用只读仓库权限、同分支并发取消，并仅在失败时上传 Playwright 诊断文件。
 
+## GitHub Release
+
+合并到 `master` 并确认 CI 通过后，可由维护者创建并推送与 `package.json`、生产 `dist/manifest.json` 完全一致的稳定版本标签，例如 `v0.1.0`。仓库只接受 `v主版本.次版本.修订版本` 格式，不接受前导零、缺失版本段或预发布后缀。
+
+标签触发的 Release workflow 会在 Node.js 22 下重新执行 `npm run verify:ci`，校验标签、包版本和扩展 manifest 版本一致，然后从 `dist` 内部打包，确保 `manifest.json` 位于压缩包根目录。发布产物为：
+
+- `comment-card-extension-v0.1.0.zip`：可解压后在 Chrome 中“加载已解压的扩展程序”的生产包。
+- `comment-card-extension-v0.1.0.zip.sha256`：对应 ZIP 的 SHA-256 校验文件。
+
+本地可在构建后预检版本一致性：
+
+```powershell
+npm run build
+npm run verify:release-version -- v0.1.0 dist/manifest.json
+```
+
+自动化不会修改版本号，也不会自动创建或推送 Git 标签；发布前仍需人工确认版本、变更说明和真实 B 站验收证据。
+
 `npm run test:e2e` 会先正常构建并核对生产 manifest，再生成只匹配 `http://127.0.0.1/*` 的临时 E2E 构建，将 `dist/` 作为 unpacked extension 加载进 persistent Chromium context。测试结束后会再次正常构建，使 `dist/manifest.json` 恢复为生产范围。E2E 使用 Playwright 的 `channel: "chromium"`（完整 bundled Chromium），不静默跳过缺失浏览器；如果浏览器未安装，命令会明确失败并提示执行上面的安装命令。
 
 自动化只访问动态端口上的本机 fixture，不依赖公网或真实哔哩哔哩页面。persistent profile、fixture server 与下载文件在每条测试后清理；共享扩展构建以单 worker 运行。E2E fixture 通过不等于真实 Bilibili 页面通过；实机验收必须用已加载 unpacked `dist` 的 Chrome，按 [Chrome MCP 真实浏览器检查清单](docs/testing/chrome-mcp-checklist.md) 留存脱敏证据。

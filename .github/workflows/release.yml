@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run release gates
+        run: npm run verify:ci
+
+      - name: Verify release version
+        run: node scripts/verify-release-version.mjs "$GITHUB_REF_NAME" dist/manifest.json
+
+      - name: Package extension
+        run: |
+          mkdir -p release
+          cd dist
+          zip -r "../release/comment-card-extension-${GITHUB_REF_NAME}.zip" .
+          cd ..
+          unzip -Z1 "release/comment-card-extension-${GITHUB_REF_NAME}.zip" | grep -qx "manifest.json"
+          sha256sum "release/comment-card-extension-${GITHUB_REF_NAME}.zip" > "release/comment-card-extension-${GITHUB_REF_NAME}.zip.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "release/comment-card-extension-${GITHUB_REF_NAME}.zip" \
+            "release/comment-card-extension-${GITHUB_REF_NAME}.zip.sha256" \
+            --verify-tag \
+            --generate-notes \
+            --title "有神评 ${GITHUB_REF_NAME}"

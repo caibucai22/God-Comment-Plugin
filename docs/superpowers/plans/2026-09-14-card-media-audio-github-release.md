@@ -117,11 +117,11 @@
 - Produces: `node scripts/verify-release-version.mjs <tag> <manifest-path>`; success requires exact tag/package/manifest version agreement.
 - Produces `comment-card-extension-vX.Y.Z.zip` and `.sha256`, with `manifest.json` at ZIP root.
 
-- [ ] Add failing tests for exact matching, invalid/missing `v`, version mismatch, `v*` trigger, minimal release permission, full gates, ZIP root, checksum, and Release upload.
-- [ ] Run `npx vitest run tests/unit/release-workflow.test.ts` and retain missing-script/workflow RED.
-- [ ] Implement strict `vMAJOR.MINOR.PATCH` parsing and concise deterministic output in the Node verifier.
-- [ ] Add the tag workflow: run full CI-equivalent gates, build production, run the version guard, zip from inside `dist`, audit the archive listing, compute SHA-256, and publish using only `GITHUB_TOKEN` with `contents: write`.
-- [ ] Run the focused suite and `node scripts/verify-release-version.mjs v0.1.0 dist/manifest.json`.
+- [x] Add failing tests for exact matching, invalid/missing `v`, version mismatch, `v*` trigger, minimal release permission, full gates, ZIP root, checksum, and Release upload.
+- [x] Run `npx vitest run tests/unit/release-workflow.test.ts` and retain missing-script/workflow RED.
+- [x] Implement strict `vMAJOR.MINOR.PATCH` parsing and concise deterministic output in the Node verifier.
+- [x] Add the tag workflow: run full CI-equivalent gates, build production, run the version guard, zip from inside `dist`, audit the archive listing, compute SHA-256, and publish using only `GITHUB_TOKEN` with `contents: write`.
+- [x] Run the focused suite and `node scripts/verify-release-version.mjs v0.1.0 dist/manifest.json`.
 - [ ] Commit as `ci: package tagged extension releases`.
 
 ### Task 6: Documentation and final acceptance
@@ -135,7 +135,7 @@
 - Consumes all prior task behavior and gate evidence.
 - Produces reproducible contributor/release instructions and a merge-ready handoff.
 
-- [ ] Document mascot drag/snap and storage, cover ranges, sound cues, npm verification, PR/master CI, tag artifacts, installation, and the absence of Web Store automation.
+- [x] Document mascot drag/snap and storage, cover ranges, sound cues, npm verification, PR/master CI, tag artifacts, installation, and the absence of Web Store automation.
 - [ ] Run `& '.\scripts\run-release-gates.ps1'`; require all Vitest, TypeScript, production build/audit, Playwright, and diff checks to pass and record the unique log path.
 - [ ] Capture ignored screenshots for 3:4, 9:16, short/long 16:9, left/right mascot, and reduced motion.
 - [ ] Ask the user to verify new sound on/off and mascot drag/reload on a real Bilibili video page; do not represent fixture evidence as real-site evidence.
