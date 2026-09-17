@@ -235,19 +235,19 @@ function Assert-ReleaseGateStructure {
         param($command)
         $command.GetCommandName() -eq 'Initialize-WindowsNodeEnvironment'
     } -Message 'Gate script must invoke Initialize-WindowsNodeEnvironment.'
-    $nodeResolution = Get-FirstCommand -Commands $commands -Predicate {
+    $npmResolution = Get-FirstCommand -Commands $commands -Predicate {
         param($command)
-        $command.GetCommandName() -eq 'Get-Command' -and $command.Extent.Text -match 'node\.exe'
-    } -Message 'Gate script must resolve node.exe through Get-Command.'
+        $command.GetCommandName() -eq 'Get-Command' -and $command.Extent.Text -match 'npm\.cmd'
+    } -Message 'Gate script must resolve npm.cmd through Get-Command.'
     Assert-Precedes -Earlier $environmentSource -Later $initializer -Message 'Environment initialization script must be loaded before it is invoked.'
-    Assert-Precedes -Earlier $initializer -Later $nodeResolution -Message 'Environment initialization must happen before resolving node.exe.'
+    Assert-Precedes -Earlier $initializer -Later $npmResolution -Message 'Environment initialization must happen before resolving npm.cmd.'
 
     $entrypoints = @(
-        @{ Name = 'Vitest'; Path = 'node_modules\vitest\vitest.mjs'; Argument = '--run' },
-        @{ Name = 'TypeScript'; Path = 'node_modules\typescript\bin\tsc'; Argument = '--noEmit' },
-        @{ Name = 'Vite'; Path = 'node_modules\vite\bin\vite.js'; Argument = 'build' },
-        @{ Name = 'Production package audit'; Path = 'scripts\audit-production-package.mjs'; Argument = 'audit-production-package.mjs' },
-        @{ Name = 'Playwright'; Path = 'node_modules\@playwright\test\cli.js'; Argument = 'test' }
+        @{ Name = 'Vitest'; Script = 'test:ci' },
+        @{ Name = 'TypeScript'; Script = 'typecheck' },
+        @{ Name = 'Vite'; Script = 'build' },
+        @{ Name = 'Production package audit'; Script = 'audit:production' },
+        @{ Name = 'Playwright'; Script = 'test:e2e' }
     )
     $releaseSteps = @($invokeGate.FindAll({ param($node) $node -is [System.Management.Automation.Language.HashtableAst] }, $true))
     $releaseStepByName = @{}
@@ -260,10 +260,10 @@ function Assert-ReleaseGateStructure {
             throw "Gate script must define the local $($entrypoint.Name) release step."
         }
 
-        Assert-Equal -Actual (Get-HashtableValueText -Hashtable $step -Key 'FilePath') -Expected '$nodeExecutable' -Message "$($entrypoint.Name) must be invoked by the resolved node.exe."
+        Assert-Equal -Actual (Get-HashtableValueText -Hashtable $step -Key 'FilePath') -Expected '$npmExecutable' -Message "$($entrypoint.Name) must be invoked by the resolved npm.cmd."
         $arguments = Get-HashtableValueText -Hashtable $step -Key 'ArgumentList'
-        Assert-True -Condition ($arguments -match [regex]::Escape($entrypoint.Path)) -Message "$($entrypoint.Name) must target its local entrypoint."
-        Assert-True -Condition ($arguments -match [regex]::Escape($entrypoint.Argument)) -Message "$($entrypoint.Name) must retain $($entrypoint.Argument)."
+        Assert-True -Condition ($arguments -match "'run'") -Message "$($entrypoint.Name) must invoke an npm script."
+        Assert-True -Condition ($arguments -match [regex]::Escape($entrypoint.Script)) -Message "$($entrypoint.Name) must invoke npm script $($entrypoint.Script)."
         $releaseStepByName[$entrypoint.Name] = $step
     }
     Assert-Precedes -Earlier $releaseStepByName['Vite'] -Later $releaseStepByName['Production package audit'] -Message 'Production package audit must run after Vite.'
@@ -276,7 +276,7 @@ function Assert-ReleaseGateStructure {
             $command.Extent.Text -match "FilePath 'git'" -and
             $command.Extent.Text -match "master\.\.\.HEAD"
     } -Message 'Gate script must run git diff --check master...HEAD through the checked release-step helper.'
-    Assert-Precedes -Earlier $nodeResolution -Later $gitDiffCheck -Message 'Git diff check must run after Node resolution and the Node release steps.'
+    Assert-Precedes -Earlier $npmResolution -Later $gitDiffCheck -Message 'Git diff check must run after npm resolution and the npm release steps.'
 
     $processInvocation = Get-FirstCommand -Commands @($invokeStep.FindAll({
         param($node)
@@ -313,13 +313,13 @@ function Assert-ReleaseGateStructure {
 $gateText = Get-Content -Raw -LiteralPath $gateScript
 Assert-ReleaseGateStructure -ScriptText $gateText
 
-$wrongViteCaller = $gateText.Replace("Name = 'Vite'; FilePath = `$nodeExecutable", "Name = 'Vite'; FilePath = 'vite'")
+$wrongViteCaller = $gateText.Replace("Name = 'Vite'; FilePath = `$npmExecutable", "Name = 'Vite'; FilePath = 'vite'")
 Assert-True -Condition ($wrongViteCaller -cne $gateText) -Message 'Vite caller mutation did not change the gate source.'
-Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongViteCaller } -ExpectedMessage 'Vite must be invoked by the resolved node.exe'
+Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongViteCaller } -ExpectedMessage 'Vite must be invoked by the resolved npm.cmd'
 
-$wrongAuditCaller = $gateText.Replace("Name = 'Production package audit'; FilePath = `$nodeExecutable", "Name = 'Production package audit'; FilePath = 'node'")
+$wrongAuditCaller = $gateText.Replace("Name = 'Production package audit'; FilePath = `$npmExecutable", "Name = 'Production package audit'; FilePath = 'node'")
 Assert-True -Condition ($wrongAuditCaller -cne $gateText) -Message 'Production package audit caller mutation did not change the gate source.'
-Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongAuditCaller } -ExpectedMessage 'Production package audit must be invoked by the resolved node.exe'
+Assert-Throws -Action { Assert-ReleaseGateStructure -ScriptText $wrongAuditCaller } -ExpectedMessage 'Production package audit must be invoked by the resolved npm.cmd'
 
 $missingExitBinding = $gateText.Replace('$exitCode = $LASTEXITCODE', '$exitCode = 0')
 Assert-True -Condition ($missingExitBinding -cne $gateText) -Message 'Exit-code mutation did not change the gate source.'

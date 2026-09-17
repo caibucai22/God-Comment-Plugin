@@ -98,12 +98,12 @@
 - Produces npm scripts `typecheck`, `audit:production`, `test:ci`, and `verify:ci` usable on Windows and Linux.
 - Windows release gate consumes the same npm commands and retains unique logging.
 
-- [ ] Add a failing workflow contract test for PR plus `master` triggers, read-only permissions, concurrency cancellation, Node 22, `npm ci`, Playwright Chromium, all gates, and failure-only artifact upload.
-- [ ] Run `npx vitest run tests/unit/github-workflows.test.ts` and retain missing-workflow RED.
-- [ ] Add cross-platform npm scripts and one Ubuntu job using pinned-major official actions, npm lockfile caching, and failure-only Playwright reports; do not invoke PowerShell from Linux.
-- [ ] Update the Windows gate to call the shared underlying commands without reducing its coverage or log guarantees.
-- [ ] Run `npm run test:ci`, `npm run typecheck`, `npm run build`, `npm run audit:production`, and the workflow contract test.
-- [ ] Commit as `ci: validate extension on pull requests`.
+- [x] Add a failing workflow contract test for PR plus `master` triggers, read-only permissions, concurrency cancellation, Node 22, `npm ci`, Playwright Chromium, all gates, and failure-only artifact upload.
+- [x] Run `npx vitest run tests/unit/github-workflows.test.ts` and retain missing-workflow RED.
+- [x] Add cross-platform npm scripts and one Ubuntu job using pinned-major official actions, npm lockfile caching, and failure-only Playwright reports; do not invoke PowerShell from Linux.
+- [x] Update the Windows gate to call the shared underlying commands without reducing its coverage or log guarantees.
+- [x] Run `npm run test:ci`, `npm run typecheck`, `npm run build`, `npm run audit:production`, and the workflow contract test.
+- [x] Commit as `ci: validate extension on pull requests`.
 
 ### Task 5: Tagged release ZIP and checksum
 

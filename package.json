@@ -6,7 +6,11 @@
   "scripts": {
     "build": "vite build",
     "test": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "audit:production": "node scripts/audit-production-package.mjs",
+    "test:ci": "vitest --run",
+    "verify:ci": "npm run test:ci && npm run typecheck && npm run build && npm run audit:production && npm run test:e2e"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.28",

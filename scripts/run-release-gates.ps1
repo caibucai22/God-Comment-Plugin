@@ -64,19 +64,19 @@ function Invoke-ReleaseGates {
         . (Join-Path -Path $projectRoot -ChildPath 'scripts\windows-node-env.ps1')
         Initialize-WindowsNodeEnvironment
 
-        $nodeCommand = Get-Command -Name 'node.exe' -CommandType Application -ErrorAction Stop
-        $nodeExecutable = $nodeCommand.Path
-        if ([string]::IsNullOrWhiteSpace($nodeExecutable)) {
-            throw 'Resolved node.exe does not provide an executable path.'
+        $npmCommand = Get-Command -Name 'npm.cmd' -CommandType Application -ErrorAction Stop
+        $npmExecutable = $npmCommand.Path
+        if ([string]::IsNullOrWhiteSpace($npmExecutable)) {
+            throw 'Resolved npm.cmd does not provide an executable path.'
         }
 
         if ($null -eq $Steps) {
             $Steps = @(
-                @{ Name = 'Vitest'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\vitest\vitest.mjs'), '--run') },
-                @{ Name = 'TypeScript'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\typescript\bin\tsc'), '--noEmit') },
-                @{ Name = 'Vite'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\vite\bin\vite.js'), 'build') },
-                @{ Name = 'Production package audit'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'scripts\audit-production-package.mjs')) },
-                @{ Name = 'Playwright'; FilePath = $nodeExecutable; ArgumentList = @((Join-Path -Path $projectRoot -ChildPath 'node_modules\@playwright\test\cli.js'), 'test') }
+                @{ Name = 'Vitest'; FilePath = $npmExecutable; ArgumentList = @('run', 'test:ci') },
+                @{ Name = 'TypeScript'; FilePath = $npmExecutable; ArgumentList = @('run', 'typecheck') },
+                @{ Name = 'Vite'; FilePath = $npmExecutable; ArgumentList = @('run', 'build') },
+                @{ Name = 'Production package audit'; FilePath = $npmExecutable; ArgumentList = @('run', 'audit:production') },
+                @{ Name = 'Playwright'; FilePath = $npmExecutable; ArgumentList = @('run', 'test:e2e') }
             )
         }
 
