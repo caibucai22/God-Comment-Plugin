@@ -319,6 +319,10 @@ test("drags the pixel mascot, restores its snapped edge, and keeps click selecti
   await expect.poll(async () => (await entry.boundingBox())?.x).toBeLessThanOrEqual(17);
 
   await page.setViewportSize({ width: 700, height: 260 });
+  await expect.poll(async () => {
+    const bounds = await entry.boundingBox();
+    return bounds ? bounds.y + bounds.height : Number.POSITIVE_INFINITY;
+  }).toBeLessThanOrEqual(244);
   const resized = await entry.boundingBox();
   expect(resized).not.toBeNull();
   expect(resized!.y).toBeGreaterThanOrEqual(16);
