@@ -11,7 +11,7 @@ npm install
 npx playwright install chromium
 ```
 
-本工作树最近一次环境采集为 Windows 11（运行时标识 `Microsoft Windows NT 10.0.26200.0`）、PowerShell Core 7.6.4、Node.js v22.22.2、npm 10.9.7 和 Playwright 1.62.1。每次准备发布仍应在目标机器重新运行以下完整验证矩阵；具体命令、日志与真实浏览器状态见 [MVP 验收交接](docs/status/2026-08-15-mvp-acceptance-handoff.md)。
+本工作树最近一次环境采集为 Windows 11（运行时标识 `Microsoft Windows NT 10.0.26200.0`）、PowerShell Core 7.6.4、Node.js v22.22.2、npm 10.9.7 和 Playwright 1.62.1。每次准备发布仍应在目标机器重新运行以下完整验证矩阵。
 
 常用验证命令：
 
@@ -53,7 +53,7 @@ npm run verify:release-version -- v0.1.0 dist/manifest.json
 
 `npm run test:e2e` 会先正常构建并核对生产 manifest，再生成只匹配 `http://127.0.0.1/*` 的临时 E2E 构建，将 `dist/` 作为 unpacked extension 加载进 persistent Chromium context。测试结束后会再次正常构建，使 `dist/manifest.json` 恢复为生产范围。E2E 使用 Playwright 的 `channel: "chromium"`（完整 bundled Chromium），不静默跳过缺失浏览器；如果浏览器未安装，命令会明确失败并提示执行上面的安装命令。
 
-自动化只访问动态端口上的本机 fixture，不依赖公网或真实哔哩哔哩页面。persistent profile、fixture server 与下载文件在每条测试后清理；共享扩展构建以单 worker 运行。E2E fixture 通过不等于真实 Bilibili 页面通过；实机验收必须用已加载 unpacked `dist` 的 Chrome，按 [Chrome MCP 真实浏览器检查清单](docs/testing/chrome-mcp-checklist.md) 留存脱敏证据。
+自动化只访问动态端口上的本机 fixture，不依赖公网或真实哔哩哔哩页面。persistent profile、fixture server 与下载文件在每条测试后清理；共享扩展构建以单 worker 运行。E2E fixture 通过不等于真实 Bilibili 页面通过；实机验收必须使用已加载 unpacked `dist` 的 Chrome，并留存脱敏截图、控制台与操作记录。
 
 ## 在 Chrome 中加载
 
@@ -91,4 +91,4 @@ npm run build
 
 ## 真实浏览器复核
 
-Playwright 提供可重复自动化基线。使用已安装 `chrome-mcp-tools` 做人工真实 Chrome 复核时，按 `docs/testing/chrome-mcp-checklist.md` 执行；该检查需要独立保留 snapshot、console、截图和操作日志证据。
+Playwright 提供可重复自动化基线。使用已安装的 `chrome-mcp-tools` 做人工真实 Chrome 复核时，应覆盖入口显示、评论选择与退出、卡片生成和下载、悬浮入口拖动吸附及刷新恢复，并独立保留 snapshot、console、截图和操作日志证据。
